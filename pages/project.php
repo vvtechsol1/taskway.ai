@@ -80,6 +80,8 @@ require __DIR__ . '/../partials/header.php';
           <?php endforeach; ?>
         </div>
         <a href="<?= page_url('projects') ?>" class="btn btn-ghost btn-sm">← All projects</a>
+        <button class="btn btn-ghost btn-sm" onclick='projectEditorOpen("edit", <?= json_encode($project, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)'>✏️ Edit</button>
+        <button class="btn btn-danger btn-sm" onclick="projectDelete(<?= (int)$id ?>, <?= json_encode($project['name'], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)">🗑️ Delete</button>
       </div>
     </div>
     <!-- Progress ring -->
@@ -240,5 +242,7 @@ function drawProject() {
   }
 })();
 </script>
+
+<?php render_project_editor(); ?>
 
 <?php require __DIR__ . '/../partials/footer.php'; ?>

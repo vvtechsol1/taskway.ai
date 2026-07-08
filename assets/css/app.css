@@ -202,6 +202,30 @@ h1, h2, h3, h4 { margin: 0; font-weight: 700; letter-spacing: -.02em; }
 .card-head h3 { font-size: 15.5px; }
 .card-head .card-action { margin-left: auto; }
 
+/* Stretched-link card with a corner actions menu */
+.stretch-link { position: absolute; inset: 0; z-index: 1; border-radius: inherit; }
+.proj-actions { position: absolute; top: 10px; right: 10px; z-index: 3; }
+.proj-kebab { width: 30px; height: 30px; font-size: 17px; line-height: 1; padding: 0; opacity: .5; }
+.proj-card:hover .proj-kebab { opacity: 1; }
+.proj-menu {
+  position: absolute; top: 36px; right: 0; min-width: 148px; display: none; z-index: 4;
+  background: var(--surface); border: 1px solid var(--border-2); border-radius: 12px;
+  box-shadow: var(--shadow-lg); padding: 6px;
+}
+.proj-menu.open { display: block; animation: fadeUp .16s var(--ease); }
+.proj-menu button {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  background: none; border: 0; padding: 9px 11px; border-radius: 8px;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--text-2); cursor: pointer;
+}
+.proj-menu button:hover { background: var(--surface-2); color: var(--text); }
+.proj-menu button.danger:hover { background: var(--danger-soft); color: var(--coral); }
+
+/* Colour swatches (project editor) */
+.np-swatch { transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease); box-shadow: 0 2px 8px -4px rgba(0,0,0,.3); }
+.np-swatch:hover { transform: translateY(-1px); }
+.np-swatch.active { border-color: var(--text) !important; }
+
 .grid { display: grid; gap: var(--sp-5); }
 .cols-2 { grid-template-columns: repeat(2, 1fr); }
 .cols-3 { grid-template-columns: repeat(3, 1fr); }

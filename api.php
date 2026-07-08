@@ -129,14 +129,15 @@ try {
             if ($set) {
                 $set[] = "updated_at = datetime('now','localtime')";
                 $args[] = $id;
-                db()->prepare('UPDATE projects SET ' . implode(', ', $set) . ' WHERE id = ?')->execute($args);
+                $args[] = scope_uid();
+                db()->prepare('UPDATE projects SET ' . implode(', ', $set) . ' WHERE id = ? AND user_id = ?')->execute($args);
             }
             json_response(['ok' => true, 'project' => get_project($id)]);
 
         case 'delete_project':
             $id = (int)($in['id'] ?? 0);
-            if (!$id) json_response(['ok' => false, 'error' => 'Bad id.'], 400);
-            db()->prepare('DELETE FROM projects WHERE id = ?')->execute([$id]);
+            if (!$id || !get_project($id)) json_response(['ok' => false, 'error' => 'Not found.'], 404);
+            db()->prepare('DELETE FROM projects WHERE id = ? AND user_id = ?')->execute([$id, scope_uid()]);
             json_response(['ok' => true]);
 
         /* ---- Live stats (for polling) ---------------------------- */
