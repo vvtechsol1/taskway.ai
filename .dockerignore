@@ -1,9 +1,0 @@
-.git
-.github
-.claude
-.vscode
-.idea
-data/*.sqlite
-data/*.sqlite-wal
-data/*.sqlite-shm
-*.log

@@ -1,0 +1,32 @@
+# Auto-deploy to InfinityFree (or any FTP host) on every push to main.
+# git push -> this Action uploads changed files over FTP -> site is live.
+#
+# One-time: add 3 repo secrets (Settings -> Secrets and variables -> Actions):
+#   FTP_SERVER    e.g. ftpupload.net
+#   FTP_USERNAME  e.g. epiz_XXXXXXXX
+#   FTP_PASSWORD  your hosting/FTP password
+name: Deploy (FTP)
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ftp-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upload files via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: htdocs/
+          # Never touch the live database or repo internals.
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
+            **/data/*.sqlite*
+            README.md
