@@ -63,7 +63,7 @@ require __DIR__ . '/../partials/header.php';
             <td><?php if ($u['status'] === 'active'): ?><span class="badge done">Active</span><?php else: ?><span class="badge blocked">Disabled</span><?php endif; ?></td>
             <td style="text-align:right;white-space:nowrap">
               <button class="icon-btn" title="View workspace" onclick="viewUser(<?= (int)$u['id'] ?>)">👁️</button>
-              <button class="icon-btn" title="Edit" onclick='editUser(<?= json_encode($u, JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>✏️</button>
+              <button class="icon-btn" title="Edit" onclick="editUser(<?= esc(json_encode(['id' => (int)$u['id'], 'name' => $u['name'], 'username' => $u['username'], 'email' => $u['email'], 'role' => $u['role'], 'status' => $u['status']], JSON_UNESCAPED_UNICODE)) ?>)">✏️</button>
               <?php if ((int)$u['id'] !== $meId): ?>
                 <button class="icon-btn" title="Delete" onclick="deleteUser(<?= (int)$u['id'] ?>, '<?= esc($u['username']) ?>')">🗑️</button>
               <?php endif; ?>

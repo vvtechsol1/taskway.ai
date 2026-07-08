@@ -89,8 +89,8 @@ function render_project_card(array $p, array $opts = []): void
         <div class="proj-actions">
           <button type="button" class="icon-btn proj-kebab" data-proj-menu aria-label="Project options">⋯</button>
           <div class="proj-menu">
-            <button type="button" onclick='projectEditorOpen("edit", <?= json_encode($p, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)'>✏️ Edit</button>
-            <button type="button" class="danger" onclick="projectDelete(<?= (int)$p['id'] ?>, <?= json_encode($p['name'], JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)">🗑️ Delete</button>
+            <button type="button" onclick="projectEditorOpen('edit', <?= esc(json_encode($p, JSON_UNESCAPED_UNICODE)) ?>)">✏️ Edit</button>
+            <button type="button" class="danger" onclick="projectDelete(<?= (int)$p['id'] ?>, <?= esc(json_encode($p['name'], JSON_UNESCAPED_UNICODE)) ?>)">🗑️ Delete</button>
           </div>
         </div>
       <?php endif; ?>
