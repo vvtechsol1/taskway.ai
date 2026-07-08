@@ -112,14 +112,45 @@
       } catch (err) { TW.toast(err.message, 'err'); }
     }
 
-    // Modal open/close
+    // Modal open. Close only via [data-close-modal] (X / Cancel) — never on outside click.
     const openM = e.target.closest('[data-open-modal]');
     if (openM) { const m = document.getElementById(openM.getAttribute('data-open-modal')); if (m) m.classList.add('open'); }
-    if (e.target.closest('[data-close-modal]') || e.target.classList.contains('modal-back')) {
-      const back = e.target.closest('.modal-back');
-      if (back) back.classList.remove('open');
-    }
+    const closeM = e.target.closest('[data-close-modal]');
+    if (closeM) { const back = closeM.closest('.modal-back'); if (back) back.classList.remove('open'); }
   });
+
+  // Esc closes the top-most open modal (deliberate, not an accidental outside-click).
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') document.querySelectorAll('.modal-back.open').forEach((m) => m.classList.remove('open'));
+  });
+
+  /* ---------- Show/hide password toggle (eye) ---------- */
+  const EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+  function enhancePasswords(root) {
+    (root || document).querySelectorAll('input[type=password]').forEach((inp) => {
+      if (inp.dataset.eye) return;
+      inp.dataset.eye = '1';
+      const wrap = document.createElement('div');
+      wrap.className = 'pw-wrap';
+      inp.parentNode.insertBefore(wrap, inp);
+      wrap.appendChild(inp);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pw-eye';
+      btn.setAttribute('aria-label', 'Show password');
+      btn.innerHTML = EYE;
+      wrap.appendChild(btn);
+      btn.addEventListener('click', () => {
+        const show = inp.type === 'password';
+        inp.type = show ? 'text' : 'password';
+        btn.innerHTML = show ? EYE_OFF : EYE;
+        btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      });
+    });
+  }
+  window.TWEnhancePasswords = enhancePasswords;
+  document.addEventListener('DOMContentLoaded', () => enhancePasswords());
 
   function fadeRemove(node) {
     if (!node) return;
