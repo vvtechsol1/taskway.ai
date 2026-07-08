@@ -16,7 +16,7 @@ date_default_timezone_set('Asia/Karachi');
 
 define('APP_NAME', 'Taskway');
 define('APP_TAGLINE', 'Your AI-moderated work OS');
-define('APP_VERSION', '1.1.1');
+define('APP_VERSION', '1.1.2');
 
 define('BASE_DIR', __DIR__);
 // On hosting, point TASKWAY_DATA_DIR at a persistent volume (e.g. /data) so the SQLite file survives redeploys.

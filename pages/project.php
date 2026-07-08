@@ -5,6 +5,17 @@ $ACTIVE = 'projects';
 $id = (int)($_GET['id'] ?? 0);
 $project = $id ? get_project($id) : null;
 
+/* Fallback: add a task via a normal POST if JS/AJAX didn't intercept the form. */
+if ($project && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'quickadd') {
+    create_task([
+        'title'      => $_POST['title'] ?? '',
+        'project_id' => (int)($_POST['project_id'] ?? $id),
+        'status'     => $_POST['status'] ?? 'todo',
+        'type'       => $_POST['type'] ?? 'task',
+    ]);
+    redirect(page_url('project', ['id' => $id]));
+}
+
 if (!$project) {
     $PAGE_TITLE = 'Project';
     $PAGE_SUB = '';
@@ -120,7 +131,8 @@ require __DIR__ . '/../partials/header.php';
     <!-- Quick add -->
     <div class="card card-pad">
       <div class="card-head"><h3>＋ Add a task</h3></div>
-      <form id="quickAddForm">
+      <form id="quickAddForm" method="post" action="<?= esc(page_url('project', ['id' => $id])) ?>">
+        <input type="hidden" name="form" value="quickadd">
         <input type="hidden" name="project_id" value="<?= $id ?>">
         <input type="hidden" name="priority" value="normal">
         <div class="field">

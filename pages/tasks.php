@@ -3,6 +3,22 @@
 $ACTIVE = 'tasks';
 $PAGE_TITLE = 'Tasks';
 
+/* Fallback: add a task via a normal POST if JS/AJAX didn't intercept the form. */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form'] ?? '') === 'quickadd') {
+    create_task([
+        'title'      => $_POST['title'] ?? '',
+        'project_id' => $_POST['project_id'] ?? '',
+        'type'       => $_POST['type'] ?? 'task',
+        'priority'   => $_POST['priority'] ?? 'normal',
+    ]);
+    redirect(page_url('tasks', array_filter([
+        'status'  => $_GET['status'] ?? '',
+        'type'    => $_GET['type'] ?? '',
+        'project' => $_GET['project'] ?? '',
+        'q'       => $_GET['q'] ?? '',
+    ], fn($v) => $v !== '' && $v !== null)));
+}
+
 /* ------------------------------------------------------------------ */
 /* Read + validate filters from the query string                      */
 /* ------------------------------------------------------------------ */
@@ -146,7 +162,8 @@ require __DIR__ . '/../partials/header.php';
 
 <!-- Quick add -->
 <div class="card card-pad animate d1" style="margin-bottom:20px">
-  <form id="quickAddForm" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+  <form id="quickAddForm" method="post" action="<?= esc(page_url('tasks', array_filter(['status' => $statusFilter, 'type' => $typeFilter, 'project' => $projectFilter, 'q' => $q], fn($v) => $v !== '' && $v !== null))) ?>" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+    <input type="hidden" name="form" value="quickadd">
     <span style="font-size:20px;flex:0 0 auto;opacity:.6">✍️</span>
     <input class="input" type="text" name="title" required maxlength="200" autocomplete="off"
            placeholder="Add a task…" style="flex:1 1 220px">
