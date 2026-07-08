@@ -1,0 +1,27 @@
+# Fly.io config — FREE tier with a persistent volume (data survives redeploys).
+# One-time: install flyctl, run `fly launch --no-deploy` (accept this file), then
+# `fly volumes create taskway_data --size 1 --region bom`. Pushes then auto-deploy
+# via .github/workflows/fly-deploy.yml.
+app = "taskway-vvtechsol"          # change to a globally-unique name if taken
+primary_region = "bom"             # Mumbai — closest to Pakistan
+
+[build]
+
+[env]
+  TASKWAY_DATA_DIR = "/data"
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[mounts]]
+  source = "taskway_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

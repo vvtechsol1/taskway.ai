@@ -19,7 +19,8 @@ define('APP_TAGLINE', 'Your AI-moderated work OS');
 define('APP_VERSION', '1.0.0');
 
 define('BASE_DIR', __DIR__);
-define('DATA_DIR', BASE_DIR . DIRECTORY_SEPARATOR . 'data');
+// On hosting, point TASKWAY_DATA_DIR at a persistent volume (e.g. /data) so the SQLite file survives redeploys.
+define('DATA_DIR', getenv('TASKWAY_DATA_DIR') ?: (BASE_DIR . DIRECTORY_SEPARATOR . 'data'));
 define('DB_PATH', DATA_DIR . DIRECTORY_SEPARATOR . 'taskway.sqlite');
 
 // Base URL path (folder under which the app is served, e.g. /taskway).

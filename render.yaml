@@ -1,0 +1,17 @@
+# Render Blueprint — deploys Taskway straight from this GitHub repo.
+# In Render: New + -> Blueprint -> connect vvtechsol1/taskway.ai -> Apply.
+# Every push to main then auto-deploys.
+services:
+  - type: web
+    name: taskway
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: TASKWAY_DATA_DIR
+        value: /var/data
+    # NOTE: the free plan has no persistent disk, so data resets on redeploy/sleep.
+    # To keep data permanently, add a Disk (mountPath: /var/data) — that requires a paid instance.
+    # For a FREE + persistent setup, use Fly.io instead (see fly.toml).
