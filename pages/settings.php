@@ -1,322 +1,166 @@
 <?php
-/** Settings — personalize the workspace. Handles its own POST (one hidden `form` marker per card). */
+/** Settings — per-user profile + (super admin) global workspace settings. */
 $ACTIVE = 'settings';
 $PAGE_TITLE = 'Settings';
 $PAGE_SUB = 'Personalize your workspace';
-$saved = false;
+
+$me = current_user();
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $form = (string)($_POST['form'] ?? '');
+    $form = $_POST['form'] ?? '';
 
-    /* ---- Danger zone: wipe all data (settings kept). Only on explicit confirm+flag. ---- */
-    if ($form === 'reset' && ($_POST['reset'] ?? '') === '1') {
-        db()->exec('DELETE FROM time_entries');
-        db()->exec('DELETE FROM tasks');
-        db()->exec('DELETE FROM activity_log');
-        db()->exec('DELETE FROM projects');
-        redirect(page_url('settings', ['saved' => 'reset']));
-    }
-
-    /* ---- Profile ---- */
     if ($form === 'profile') {
-        $name = trim((string)($_POST['user_name'] ?? ''));
-        set_setting('user_name', $name !== '' ? $name : 'there');
-
-        $goal = (int)($_POST['daily_hours_goal'] ?? 6);
-        $goal = max(1, min(16, $goal));
-        set_setting('daily_hours_goal', (string)$goal);
-
+        update_user((int)$me['id'], [
+            'name'       => $_POST['name'] ?? '',
+            'email'      => $_POST['email'] ?? '',
+            'color'      => $_POST['color'] ?? $me['color'],
+            'daily_goal' => (int)($_POST['daily_goal'] ?? 6),
+        ]);
         redirect(page_url('settings', ['saved' => 1]));
     }
 
-    /* ---- Appearance ---- */
-    if ($form === 'appearance') {
-        $theme = (string)($_POST['theme'] ?? 'light');
-        if (!in_array($theme, ['light', 'dark', 'auto'], true)) {
-            $theme = 'light';
-        }
-        set_setting('theme', $theme);
-        redirect(page_url('settings', ['saved' => 1]));
-    }
-
-    /* ---- Brain Dump AI ---- */
-    if ($form === 'ai') {
-        $provider = (string)($_POST['ai_provider'] ?? 'local');
-        if (!in_array($provider, ['local', 'claude'], true)) {
-            $provider = 'local';
-        }
-        set_setting('ai_provider', $provider);
-
-        // Blank key means "keep the existing one" — never overwrite with empty.
-        $newKey = trim((string)($_POST['claude_api_key'] ?? ''));
-        if ($newKey !== '') {
-            set_setting('claude_api_key', $newKey);
-        }
-
-        $model = trim((string)($_POST['claude_model'] ?? ''));
-        set_setting('claude_model', $model !== '' ? $model : 'claude-sonnet-5');
-
-        redirect(page_url('settings', ['saved' => 1]));
-    }
-
-    /* ---- Security (password lock) ---- */
-    if ($form === 'security') {
-        $wantAuth    = ($_POST['auth_enabled'] ?? '') === '1';
-        $newPw       = (string)($_POST['new_password'] ?? '');
-        $confirmPw   = (string)($_POST['confirm_password'] ?? '');
-        $existingHash = (string)setting('auth_password'); // request-start value; unchanged so far
-
-        if ($newPw !== '') {
-            if ($newPw !== $confirmPw) {
-                $error = 'Those passwords don\'t match — nothing was changed.';
-            } elseif (strlen($newPw) < 4) {
-                $error = 'Pick a password of at least 4 characters.';
-            } else {
-                set_setting('auth_password', password_hash($newPw, PASSWORD_DEFAULT));
-                set_setting('auth_enabled', $wantAuth ? '1' : '0');
-            }
+    if ($form === 'password') {
+        $cur = (string)($_POST['current_password'] ?? '');
+        $new = (string)($_POST['new_password'] ?? '');
+        $conf = (string)($_POST['confirm_password'] ?? '');
+        if (!password_verify($cur, $me['password_hash'])) {
+            $error = 'Current password is incorrect.';
+        } elseif (strlen($new) < 6) {
+            $error = 'New password must be at least 6 characters.';
+        } elseif ($new !== $conf) {
+            $error = 'New passwords do not match.';
         } else {
-            // No new password typed — just toggle the lock.
-            if ($wantAuth) {
-                if ($existingHash !== '') {
-                    set_setting('auth_enabled', '1');
-                } else {
-                    // Guard: never enable the lock without a stored password (would lock the user out).
-                    set_setting('auth_enabled', '0');
-                    $error = 'Set a password first — Taskway won\'t enable the lock without one.';
-                }
-            } else {
-                set_setting('auth_enabled', '0'); // remove-password / disable path
-            }
-        }
-
-        if ($error === '') {
+            update_user((int)$me['id'], ['password' => $new]);
             redirect(page_url('settings', ['saved' => 1]));
         }
     }
+
+    if ($form === 'appearance') {
+        $t = in_array($_POST['theme'] ?? '', ['light', 'dark', 'auto'], true) ? $_POST['theme'] : 'light';
+        set_setting('theme', $t);
+        redirect(page_url('settings', ['saved' => 1]));
+    }
+
+    if ($form === 'ai' && is_super_admin()) {
+        set_setting('ai_provider', ($_POST['ai_provider'] ?? 'local') === 'claude' ? 'claude' : 'local');
+        if (trim((string)($_POST['claude_api_key'] ?? '')) !== '') {
+            set_setting('claude_api_key', trim((string)$_POST['claude_api_key']));
+        }
+        set_setting('claude_model', trim((string)($_POST['claude_model'] ?? 'claude-sonnet-5')) ?: 'claude-sonnet-5');
+        set_setting('allow_signup', isset($_POST['allow_signup']) ? '1' : '0');
+        redirect(page_url('settings', ['saved' => 1]));
+    }
+
+    if ($form === 'reset' && ($_POST['reset'] ?? '') === '1') {
+        $uid = (int)$me['id'];
+        foreach (['time_entries', 'tasks', 'projects', 'activity_log'] as $t) {
+            db()->prepare("DELETE FROM $t WHERE user_id = ?")->execute([$uid]);
+        }
+        redirect(page_url('settings', ['saved' => 'reset']));
+    }
 }
 
-/* ---- Current values for the form (read after POST; success paths already redirected) ---- */
-$userName   = (string)setting('user_name', 'there');
-$userField  = $userName === 'there' ? '' : $userName;
-$goalHours  = (int)setting('daily_hours_goal', '6');
-$theme      = (string)setting('theme', 'light');
-$provider   = (string)setting('ai_provider', 'local');
-$hasKey     = trim((string)setting('claude_api_key')) !== '';
-$model      = (string)setting('claude_model', 'claude-sonnet-5');
-$authOn     = setting('auth_enabled') === '1';
-$hasPassword = (string)setting('auth_password') !== '';
-$savedFlag  = (string)($_GET['saved'] ?? '');
+$me = current_user();   // refresh after any update
+$saved = $_GET['saved'] ?? '';
 
 require __DIR__ . '/../partials/header.php';
 ?>
 
-<style>
-.set-wrap { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-.opt {
-  display: flex; gap: 12px; align-items: flex-start;
-  padding: 13px 14px; border: 1px solid var(--border-2); border-radius: 13px;
-  background: var(--surface-2); cursor: pointer;
-  transition: all var(--dur) var(--ease);
-}
-.opt:hover { background: var(--surface); border-color: var(--border-2); }
-.opt.active { border-color: var(--primary); background: var(--primary-soft); }
-.opt input[type=radio] { margin-top: 3px; accent-color: var(--primary); }
-.opt .opt-t { font-weight: 650; font-size: 14px; }
-.opt .opt-d { font-size: 12.5px; color: var(--text-3); margin-top: 2px; }
-.chip.on-radio input { display: none; }
-.toggle-row {
-  display: flex; align-items: flex-start; gap: 12px;
-  padding: 13px 14px; border: 1px solid var(--border-2); border-radius: 13px;
-  background: var(--surface-2);
-}
-.toggle-row input[type=checkbox] { width: 20px; height: 20px; margin-top: 1px; accent-color: var(--primary); cursor: pointer; flex: 0 0 auto; }
-.danger-zone { border: 1px solid var(--danger-soft); background: var(--danger-soft); border-radius: 13px; padding: 14px 15px; }
-</style>
+<?php if ($saved): ?>
+  <div class="badge done animate" style="padding:10px 16px;margin-bottom:18px"><?= $saved === 'reset' ? 'Your data was reset.' : 'Saved ✓' ?></div>
+<?php endif; ?>
+<?php if ($error): ?>
+  <div class="badge blocked" style="padding:10px 16px;margin-bottom:18px"><?= esc($error) ?></div>
+<?php endif; ?>
 
-<div class="set-wrap">
-
-  <?php if ($savedFlag === 'reset'): ?>
-    <div class="badge done animate" style="width:100%;justify-content:center;padding:11px;">🧹 All tasks, time and projects were reset. Your settings were kept.</div>
-  <?php elseif ($savedFlag !== ''): ?>
-    <div class="badge done animate" style="width:100%;justify-content:center;padding:11px;">✅ Settings saved.</div>
-  <?php endif; ?>
-
-  <?php if ($error !== ''): ?>
-    <div class="badge blocked animate" style="width:100%;justify-content:center;padding:11px;"><?= esc($error) ?></div>
-  <?php endif; ?>
-
-  <!-- 1) Profile -->
-  <div class="card card-pad animate">
+<div style="max-width:760px">
+  <!-- Profile -->
+  <div class="card card-pad mb-6 animate">
     <div class="card-head"><h3>👤 Profile</h3></div>
     <form method="post" action="<?= page_url('settings') ?>">
       <input type="hidden" name="form" value="profile">
-      <div class="field">
-        <label class="fld" for="user_name">Display name</label>
-        <input class="input" type="text" id="user_name" name="user_name" maxlength="60"
-               value="<?= esc($userField) ?>" placeholder="Your name">
-        <div class="help">Shown in your dashboard greeting.</div>
+      <div class="row wrap" style="gap:16px">
+        <div class="field grow"><label class="fld">Name</label><input class="input" name="name" value="<?= esc($me['name']) ?>"></div>
+        <div class="field grow"><label class="fld">Email</label><input class="input" name="email" type="email" value="<?= esc($me['email']) ?>"></div>
+      </div>
+      <div class="row wrap" style="gap:16px">
+        <div class="field grow"><label class="fld">Username</label><input class="input" value="<?= esc($me['username']) ?>" disabled><div class="help">Username can't be changed here.</div></div>
+        <div class="field grow"><label class="fld">Daily hours goal</label><input class="input" name="daily_goal" type="number" min="1" max="16" value="<?= (int)$me['daily_goal'] ?>"></div>
       </div>
       <div class="field">
-        <label class="fld" for="daily_hours_goal">Daily hours goal</label>
-        <input class="input" type="number" id="daily_hours_goal" name="daily_hours_goal"
-               min="1" max="16" step="1" value="<?= esc((string)$goalHours) ?>" style="max-width:160px">
-        <div class="help">Drives the daily goal ring on your dashboard (1–16 hours).</div>
+        <label class="fld">Avatar color</label>
+        <div class="row wrap" style="gap:8px">
+          <?php foreach (PROJECT_PALETTE as $c): ?>
+            <label style="cursor:pointer"><input type="radio" name="color" value="<?= esc($c) ?>" <?= $me['color'] === $c ? 'checked' : '' ?> style="display:none"><span style="display:inline-block;width:26px;height:26px;border-radius:8px;background:<?= esc($c) ?>;outline:<?= $me['color'] === $c ? '3px solid var(--text-3)' : 'none' ?>;outline-offset:2px"></span></label>
+          <?php endforeach; ?>
+        </div>
       </div>
-      <div class="row mt-4"><button class="btn btn-primary" type="submit">Save profile</button></div>
+      <button class="btn btn-primary mt-4">Save profile</button>
     </form>
   </div>
 
-  <!-- 2) Appearance -->
-  <div class="card card-pad animate">
+  <!-- Password -->
+  <div class="card card-pad mb-6 animate d1">
+    <div class="card-head"><h3>🔒 Change password</h3></div>
+    <form method="post" action="<?= page_url('settings') ?>">
+      <input type="hidden" name="form" value="password">
+      <div class="field"><label class="fld">Current password</label><input class="input" type="password" name="current_password" required></div>
+      <div class="row wrap" style="gap:16px">
+        <div class="field grow"><label class="fld">New password</label><input class="input" type="password" name="new_password" required></div>
+        <div class="field grow"><label class="fld">Confirm new password</label><input class="input" type="password" name="confirm_password" required></div>
+      </div>
+      <button class="btn btn-primary mt-4">Update password</button>
+    </form>
+  </div>
+
+  <!-- Appearance -->
+  <div class="card card-pad mb-6 animate d1">
     <div class="card-head"><h3>🎨 Appearance</h3></div>
     <form method="post" action="<?= page_url('settings') ?>">
       <input type="hidden" name="form" value="appearance">
-      <div class="field">
-        <label class="fld">Default theme</label>
-        <div class="row wrap" id="themeChips" style="gap:8px">
-          <?php foreach (['light' => '☀️ Light', 'dark' => '🌙 Dark', 'auto' => '🌗 Auto'] as $val => $label): ?>
-            <label class="chip on-radio <?= $theme === $val ? 'active' : '' ?>">
-              <input type="radio" name="theme" value="<?= esc($val) ?>" <?= $theme === $val ? 'checked' : '' ?>>
-              <?= $label ?>
-            </label>
-          <?php endforeach; ?>
-        </div>
-        <div class="help">The topbar 🌙 button still lets you flip themes instantly on this device.</div>
+      <div class="row wrap" style="gap:8px">
+        <?php foreach (['light' => '☀️ Light', 'dark' => '🌙 Dark', 'auto' => '🖥️ Auto'] as $v => $lbl): ?>
+          <label class="chip <?= setting('theme') === $v ? 'active' : '' ?>"><input type="radio" name="theme" value="<?= $v ?>" <?= setting('theme') === $v ? 'checked' : '' ?> style="display:none" onchange="this.form.submit()"><?= $lbl ?></label>
+        <?php endforeach; ?>
       </div>
-      <div class="row mt-4"><button class="btn btn-primary" type="submit">Save appearance</button></div>
+      <div class="help mt-2">The top-bar 🌙 toggle also switches theme instantly and remembers your choice on this device.</div>
     </form>
   </div>
 
-  <!-- 3) Brain Dump AI -->
-  <div class="card card-pad animate">
-    <div class="card-head">
-      <h3>🧠 Brain Dump AI</h3>
-      <span class="badge <?= $provider === 'claude' && $hasKey ? 'in_progress' : '' ?>">
-        <?= $provider === 'claude' && $hasKey ? 'Claude AI' : 'Smart parser' ?>
-      </span>
-    </div>
+  <?php if (is_super_admin()): ?>
+  <!-- Brain Dump AI (global, admin) -->
+  <div class="card card-pad mb-6 animate d2">
+    <div class="card-head"><h3>🧠 Brain Dump AI</h3><span class="badge" style="background:var(--primary-soft);color:var(--primary)">Admin · everyone</span></div>
     <form method="post" action="<?= page_url('settings') ?>">
       <input type="hidden" name="form" value="ai">
       <div class="field">
-        <label class="fld">Parsing engine</label>
-        <div style="display:grid;gap:10px" id="providerOpts">
-          <label class="opt <?= $provider === 'local' ? 'active' : '' ?>">
-            <input type="radio" name="ai_provider" value="local" <?= $provider === 'local' ? 'checked' : '' ?>>
-            <span>
-              <span class="opt-t">Smart parser <span class="muted" style="font-weight:600">· offline</span></span>
-              <span class="opt-d">Built-in. Reads status, time, projects and priority. No key needed.</span>
-            </span>
-          </label>
-          <label class="opt <?= $provider === 'claude' ? 'active' : '' ?>">
-            <input type="radio" name="ai_provider" value="claude" <?= $provider === 'claude' ? 'checked' : '' ?>>
-            <span>
-              <span class="opt-t">Claude AI <span class="muted" style="font-weight:600">· smarter</span></span>
-              <span class="opt-d">Sends your notes to Claude for richer extraction. Needs an API key.</span>
-            </span>
-          </label>
+        <label class="fld">Engine</label>
+        <div class="row wrap" style="gap:10px">
+          <label class="chip <?= setting('ai_provider') !== 'claude' ? 'active' : '' ?>"><input type="radio" name="ai_provider" value="local" <?= setting('ai_provider') !== 'claude' ? 'checked' : '' ?> style="display:none" onchange="this.closest('form').querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.parentElement.classList.add('active')">⚡ Smart parser (offline, free)</label>
+          <label class="chip <?= setting('ai_provider') === 'claude' ? 'active' : '' ?>"><input type="radio" name="ai_provider" value="claude" <?= setting('ai_provider') === 'claude' ? 'checked' : '' ?> style="display:none" onchange="this.closest('form').querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.parentElement.classList.add('active')">✨ Claude AI (smarter)</label>
         </div>
       </div>
-
-      <div class="field">
-        <label class="fld" for="claude_api_key">Claude API key</label>
-        <input class="input" type="password" id="claude_api_key" name="claude_api_key" autocomplete="off"
-               placeholder="<?= $hasKey ? '•••••••••• saved — leave blank to keep' : 'sk-ant-…' ?>">
-        <div class="help">Get a key at console.anthropic.com. Stored locally in your SQLite DB. Leave blank to keep the current key.</div>
-      </div>
-
-      <div class="field">
-        <label class="fld" for="claude_model">Claude model</label>
-        <input class="input" type="text" id="claude_model" name="claude_model"
-               value="<?= esc($model) ?>" placeholder="claude-sonnet-5" style="max-width:280px">
-      </div>
-
-      <p class="help" style="margin-top:12px">If Claude AI is selected but no key is set, Taskway automatically falls back to the offline smart parser.</p>
-      <div class="row mt-4"><button class="btn btn-primary" type="submit">Save AI settings</button></div>
+      <div class="field"><label class="fld">Claude API key</label><input class="input" type="password" name="claude_api_key" placeholder="<?= trim((string)setting('claude_api_key')) !== '' ? '•••••••• (saved — blank to keep)' : 'sk-ant-...' ?>"><div class="help">Stored in your database. Get one at console.anthropic.com. If blank/invalid, Taskway uses the offline parser.</div></div>
+      <div class="field"><label class="fld">Claude model</label><input class="input" name="claude_model" value="<?= esc(setting('claude_model', 'claude-sonnet-5')) ?>"></div>
+      <label class="row" style="gap:10px;cursor:pointer;margin-top:8px"><input type="checkbox" name="allow_signup" <?= setting('allow_signup') === '1' ? 'checked' : '' ?> style="width:18px;height:18px;accent-color:var(--primary)"> <span>Allow new people to self-register (sign up)</span></label>
+      <button class="btn btn-primary mt-4">Save AI settings</button>
     </form>
   </div>
+  <?php endif; ?>
 
-  <!-- 4) Security -->
-  <div class="card card-pad animate">
-    <div class="card-head">
-      <h3>🔒 Security</h3>
-      <span class="badge <?= $authOn ? 'done' : '' ?>"><?= $authOn ? 'Lock on' : 'Open' ?></span>
-    </div>
-    <form method="post" action="<?= page_url('settings') ?>">
-      <input type="hidden" name="form" value="security">
-      <div class="field">
-        <label class="toggle-row">
-          <input type="checkbox" name="auth_enabled" value="1" <?= $authOn ? 'checked' : '' ?>>
-          <span>
-            <span style="font-weight:650;font-size:14px;display:block">Require a password to open Taskway</span>
-            <span class="help" style="margin-top:2px">
-              <?php if ($hasPassword): ?>A password is set. Untick and save to remove the lock.<?php else: ?>Set a password below before enabling this.<?php endif; ?>
-            </span>
-          </span>
-        </label>
-      </div>
-      <div class="field">
-        <label class="fld" for="new_password"><?= $hasPassword ? 'New password' : 'Password' ?></label>
-        <input class="input" type="password" id="new_password" name="new_password" autocomplete="new-password"
-               placeholder="<?= $hasPassword ? 'Leave blank to keep current' : '••••••••' ?>" style="max-width:320px">
-      </div>
-      <div class="field">
-        <label class="fld" for="confirm_password">Confirm password</label>
-        <input class="input" type="password" id="confirm_password" name="confirm_password" autocomplete="new-password"
-               placeholder="Repeat password" style="max-width:320px">
-      </div>
-      <div class="help">Stored as a secure hash — the password itself is never saved or shown.</div>
-      <div class="row mt-4"><button class="btn btn-primary" type="submit">Save security</button></div>
-    </form>
-  </div>
-
-  <!-- 5) About -->
-  <div class="card card-pad animate">
+  <!-- About + danger -->
+  <div class="card card-pad animate d3">
     <div class="card-head"><h3>ℹ️ About</h3></div>
-    <div class="row" style="gap:14px">
-      <div class="brand-logo" style="width:46px;height:46px;font-size:24px;border-radius:14px">T</div>
-      <div class="grow">
-        <div class="big" style="font-size:18px"><?= esc(APP_NAME) ?> <span class="muted small strong">v<?= esc(APP_VERSION) ?></span></div>
-        <div class="small muted">AI-moderated personal work OS</div>
-      </div>
-    </div>
-
+    <p class="dim small"><?= APP_NAME ?> v<?= APP_VERSION ?> — your AI-moderated personal work OS.</p>
     <div class="divider"></div>
-
-    <div class="danger-zone">
-      <div class="row between wrap" style="gap:12px">
-        <div>
-          <div class="strong" style="color:var(--coral)">⚠️ Danger zone</div>
-          <div class="small muted">Permanently deletes all tasks, time entries, projects and activity. Your settings stay.</div>
-        </div>
-        <form method="post" action="<?= page_url('settings') ?>"
-              onsubmit="return confirm('This permanently deletes ALL tasks, time entries, projects and activity.\n\nYour settings are kept. This cannot be undone. Continue?');">
-          <input type="hidden" name="form" value="reset">
-          <input type="hidden" name="reset" value="1">
-          <button type="submit" class="btn btn-danger">🗑 Reset all data</button>
-        </form>
-      </div>
-    </div>
+    <strong style="color:var(--coral)">Danger zone</strong>
+    <p class="small muted mt-2">This permanently deletes <strong>your</strong> tasks, projects and time — your account stays.</p>
+    <form method="post" action="<?= page_url('settings') ?>" onsubmit="return confirm('Delete ALL your tasks, projects and time entries? This cannot be undone.')">
+      <input type="hidden" name="form" value="reset"><input type="hidden" name="reset" value="1">
+      <button class="btn btn-danger mt-2">Reset my data</button>
+    </form>
   </div>
-
 </div>
-
-<script>
-(function () {
-  function wire(scope, itemSel) {
-    var root = document.querySelector(scope);
-    if (!root) return;
-    root.addEventListener('change', function () {
-      root.querySelectorAll(itemSel).forEach(function (el) {
-        var input = el.querySelector('input[type=radio]');
-        el.classList.toggle('active', input && input.checked);
-      });
-    });
-  }
-  wire('#themeChips', '.chip');
-  wire('#providerOpts', '.opt');
-})();
-</script>
 
 <?php require __DIR__ . '/../partials/footer.php'; ?>

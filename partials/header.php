@@ -5,9 +5,17 @@ $PAGE_TITLE = $PAGE_TITLE ?? APP_NAME;
 $PAGE_SUB = $PAGE_SUB ?? '';
 $theme = setting('theme', 'light');
 
-// Namespaced so these never collide with a page's own $openTasks / $activeProjects.
-$navOpenTasks = (int)db()->query("SELECT COUNT(*) FROM tasks WHERE status IN ('todo','in_progress','blocked')")->fetchColumn();
-$navActiveProjects = (int)db()->query("SELECT COUNT(*) FROM projects WHERE status='active'")->fetchColumn();
+$me = current_user();
+$viewingUid = (!empty($_SESSION['view_uid']) && is_super_admin()) ? (int)$_SESSION['view_uid'] : 0;
+$viewingUser = $viewingUid ? get_user($viewingUid) : null;
+
+// Per-user nav badges (namespaced so they never collide with a page's own vars).
+$nb = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status IN ('todo','in_progress','blocked')");
+$nb->execute([scope_uid()]);
+$navOpenTasks = (int)$nb->fetchColumn();
+$np = db()->prepare("SELECT COUNT(*) FROM projects WHERE user_id = ? AND status='active'");
+$np->execute([scope_uid()]);
+$navActiveProjects = (int)$np->fetchColumn();
 
 $nav = [
     ['dashboard', '📊', 'Dashboard', null],
@@ -47,13 +55,27 @@ $nav = [
       <?php endforeach; ?>
     </nav>
     <div class="sidebar-foot">
-      <div class="nav-label">Workspace</div>
+      <?php if (is_super_admin()): ?>
+        <div class="nav-label">Admin</div>
+        <a href="<?= page_url('users') ?>" class="nav-item <?= $ACTIVE === 'users' ? 'active' : '' ?>">
+          <span class="ic">👥</span>Users
+          <span class="nav-badge"><?= (int)db()->query('SELECT COUNT(*) FROM users')->fetchColumn() ?></span>
+        </a>
+      <?php endif; ?>
+      <div class="nav-label">Account</div>
       <a href="<?= page_url('settings') ?>" class="nav-item <?= $ACTIVE === 'settings' ? 'active' : '' ?>">
         <span class="ic">⚙️</span>Settings
       </a>
-      <a href="<?= page_url('braindump') ?>" class="nav-item" style="margin-top:8px;background:var(--primary-soft);color:var(--primary);justify-content:center;font-weight:700;">
-        <span class="ic">✨</span>Quick Add
-      </a>
+      <div class="row" style="gap:10px;padding:10px 12px;margin-top:4px;border-radius:12px;background:var(--surface-2);border:1px solid var(--border)">
+        <div class="brand-logo" style="width:34px;height:34px;font-size:14px;border-radius:10px;background:<?= esc($me['color'] ?? '#6C5CE7') ?>">
+          <?= esc(strtoupper(substr($me['name'] ?: $me['username'], 0, 1))) ?>
+        </div>
+        <div class="grow" style="min-width:0">
+          <div class="strong truncate" style="font-size:13px"><?= esc($me['name'] ?: $me['username']) ?></div>
+          <div class="muted" style="font-size:11px"><?= is_super_admin() ? '★ Super Admin' : '@' . esc($me['username']) ?></div>
+        </div>
+        <a href="<?= page_url('logout') ?>" class="icon-btn" title="Sign out" style="width:32px;height:32px">⏻</a>
+      </div>
     </div>
   </aside>
 
@@ -71,3 +93,10 @@ $nav = [
       </div>
     </header>
     <main class="content">
+    <?php if ($viewingUser): ?>
+      <div class="card card-pad mb-4" style="background:var(--warn-soft);border-color:var(--amber);display:flex;align-items:center;gap:12px">
+        <span style="font-size:20px">👁️</span>
+        <div class="grow">You are viewing <strong><?= esc($viewingUser['name'] ?: $viewingUser['username']) ?></strong>'s workspace (read-only overview).</div>
+        <button class="btn btn-ghost btn-sm" onclick="TW.api('admin_exit_view',{}).then(()=>location.href='<?= page_url('users') ?>')">Exit view</button>
+      </div>
+    <?php endif; ?>

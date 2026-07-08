@@ -5,10 +5,9 @@
  */
 
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/parser.php';
 
-require_auth();
+require_login();
 
 $action = preg_replace('/[^a-z0-9_]/', '', (string)($_GET['action'] ?? ''));
 $in = input_json();
@@ -143,6 +142,43 @@ try {
         /* ---- Live stats (for polling) ---------------------------- */
         case 'stats':
             json_response(['ok' => true, 'stats' => stats_overview(), 'timer' => running_timer()]);
+
+        /* ---- Super admin: user management ------------------------ */
+        case 'admin_create_user':
+            if (!is_super_admin()) json_response(['ok' => false, 'error' => 'Admins only.'], 403);
+            $r = create_user($in);
+            if (isset($r['error'])) json_response(['ok' => false, 'error' => $r['error']], 400);
+            log_activity('user_created', 'Added user ' . ($in['username'] ?? ''), ['id' => $r['id']]);
+            json_response(['ok' => true, 'id' => $r['id']]);
+
+        case 'admin_update_user':
+            if (!is_super_admin()) json_response(['ok' => false, 'error' => 'Admins only.'], 403);
+            $id = (int)($in['id'] ?? 0);
+            // A super admin may not strip their own admin role or disable themselves (avoid lockout).
+            if ($id === current_user_id() && (($in['role'] ?? 'super_admin') !== 'super_admin' || ($in['status'] ?? 'active') === 'disabled')) {
+                json_response(['ok' => false, 'error' => "You can't demote or disable yourself."], 400);
+            }
+            $r = update_user($id, $in);
+            if (isset($r['error'])) json_response(['ok' => false, 'error' => $r['error']], 400);
+            json_response(['ok' => true]);
+
+        case 'admin_delete_user':
+            if (!is_super_admin()) json_response(['ok' => false, 'error' => 'Admins only.'], 403);
+            $id = (int)($in['id'] ?? 0);
+            if ($id === current_user_id()) json_response(['ok' => false, 'error' => "You can't delete yourself."], 400);
+            $r = delete_user($id);
+            if (isset($r['error'])) json_response(['ok' => false, 'error' => $r['error']], 400);
+            json_response(['ok' => true]);
+
+        case 'admin_view_user':
+            if (!is_super_admin()) json_response(['ok' => false, 'error' => 'Admins only.'], 403);
+            $id = (int)($in['id'] ?? 0);
+            if (get_user($id)) $_SESSION['view_uid'] = $id;
+            json_response(['ok' => true]);
+
+        case 'admin_exit_view':
+            unset($_SESSION['view_uid']);
+            json_response(['ok' => true]);
 
         default:
             json_response(['ok' => false, 'error' => 'Unknown action.'], 404);

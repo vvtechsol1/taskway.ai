@@ -21,8 +21,10 @@ foreach (['time_entries', 'activity_log', 'tasks', 'projects'] as $t) {
     $pdo->exec("DELETE FROM sqlite_sequence WHERE name='$t'");
 }
 
-set_setting('user_name', 'Talha');
-set_setting('daily_hours_goal', '6');
+// Seed data belongs to the super admin.
+$admin = get_user_by_login('admin');
+$GLOBALS['tw_cli_uid'] = (int)$admin['id'];
+update_user((int)$admin['id'], ['name' => 'Talha', 'daily_goal' => 6]);
 
 /* ---- Projects (mirrors the real htdocs work) --------------------- */
 $projects = [

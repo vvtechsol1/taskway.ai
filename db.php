@@ -99,18 +99,71 @@ function db_migrate(PDO $pdo): void
     // Seed default settings once.
     $defaults = [
         'auth_enabled'    => '0',
-        'auth_password'   => '',                 // password_hash() when set
-        'daily_hours_goal' => '6',
-        'ai_provider'     => 'local',            // local | claude
+        'auth_password'   => '',                 // legacy single-user password
+        'daily_hours_goal' => '6',               // legacy default; per-user goal lives on users.daily_goal
+        'ai_provider'     => 'local',            // local | claude  (global, admin-managed)
         'claude_api_key'  => '',
         'claude_model'    => 'claude-sonnet-5',
-        'theme'           => 'light',            // light | dark | auto
+        'theme'           => 'light',
         'accent'          => 'violet',
         'user_name'       => 'there',
+        'allow_signup'    => '1',                // let people self-register
     ];
     $stmt = $pdo->prepare('INSERT OR IGNORE INTO settings(key, value) VALUES(?, ?)');
     foreach ($defaults as $k => $v) {
         $stmt->execute([$k, $v]);
+    }
+
+    db_migrate_users($pdo);
+}
+
+/**
+ * Multi-user upgrade: users table, per-row ownership, and a seeded super admin.
+ * Runs every boot but every step is idempotent.
+ */
+function db_migrate_users(PDO $pdo): void
+{
+    $pdo->exec(<<<SQL
+        CREATE TABLE IF NOT EXISTS users (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            name          TEXT NOT NULL DEFAULT '',
+            username      TEXT NOT NULL UNIQUE,
+            email         TEXT DEFAULT '',
+            password_hash TEXT NOT NULL,
+            role          TEXT NOT NULL DEFAULT 'user',    -- super_admin | user
+            color         TEXT DEFAULT '#6C5CE7',
+            daily_goal    INTEGER DEFAULT 6,
+            status        TEXT NOT NULL DEFAULT 'active',   -- active | disabled
+            created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            last_login    TEXT DEFAULT NULL
+        );
+    SQL);
+
+    // Add user_id ownership column to each data table if missing.
+    foreach (['projects', 'tasks', 'time_entries', 'activity_log'] as $t) {
+        $cols = $pdo->query("PRAGMA table_info($t)")->fetchAll(PDO::FETCH_COLUMN, 1);
+        if (!in_array('user_id', $cols, true)) {
+            $pdo->exec("ALTER TABLE $t ADD COLUMN user_id INTEGER");
+            $pdo->exec("CREATE INDEX IF NOT EXISTS idx_{$t}_user ON $t(user_id)");
+        }
+    }
+
+    // First run: create a super admin and hand it all pre-existing data.
+    if ((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 0) {
+        // Reuse a legacy single-user password if one was set, else a default.
+        $legacy = $pdo->query("SELECT value FROM settings WHERE key='auth_password'")->fetchColumn();
+        $hash = ($legacy && is_string($legacy) && $legacy !== '') ? $legacy : password_hash('admin123', PASSWORD_DEFAULT);
+        $name = $pdo->query("SELECT value FROM settings WHERE key='user_name'")->fetchColumn() ?: 'Super Admin';
+        $goal = (int)($pdo->query("SELECT value FROM settings WHERE key='daily_hours_goal'")->fetchColumn() ?: 6);
+
+        $stmt = $pdo->prepare("INSERT INTO users(name, username, email, password_hash, role, color, daily_goal)
+            VALUES(?, 'admin', '', ?, 'super_admin', '#6C5CE7', ?)");
+        $stmt->execute([$name, $hash, $goal]);
+        $adminId = (int)$pdo->lastInsertId();
+
+        foreach (['projects', 'tasks', 'time_entries', 'activity_log'] as $t) {
+            $pdo->exec("UPDATE $t SET user_id = $adminId WHERE user_id IS NULL");
+        }
     }
 }
 

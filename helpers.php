@@ -172,15 +172,57 @@ function period_range(string $period): array
 
 function log_activity(string $kind, string $title, array $meta = []): void
 {
-    $stmt = db()->prepare('INSERT INTO activity_log(kind, title, meta) VALUES(?, ?, ?)');
-    $stmt->execute([$kind, $title, json_encode($meta, JSON_UNESCAPED_UNICODE)]);
+    $stmt = db()->prepare('INSERT INTO activity_log(kind, title, meta, user_id) VALUES(?, ?, ?, ?)');
+    $stmt->execute([$kind, $title, json_encode($meta, JSON_UNESCAPED_UNICODE), scope_uid()]);
 }
 
 function recent_activity(int $limit = 12): array
 {
-    $stmt = db()->prepare('SELECT * FROM activity_log ORDER BY id DESC LIMIT ?');
-    $stmt->execute([$limit]);
+    $stmt = db()->prepare('SELECT * FROM activity_log WHERE user_id = ? ORDER BY id DESC LIMIT ?');
+    $stmt->execute([scope_uid(), $limit]);
     return $stmt->fetchAll();
+}
+
+/* ------------------------------------------------------------------ */
+/* Super-admin global aggregates (across ALL users)                    */
+/* ------------------------------------------------------------------ */
+
+function admin_overview(): array
+{
+    [$mf, $mt] = period_range('month');
+    $totalUsers = (int)db()->query('SELECT COUNT(*) FROM users')->fetchColumn();
+    $activeUsers = (int)db()->query("SELECT COUNT(*) FROM users WHERE status='active'")->fetchColumn();
+    $totalTasks = (int)db()->query('SELECT COUNT(*) FROM tasks')->fetchColumn();
+    $doneTasks = (int)db()->query("SELECT COUNT(*) FROM tasks WHERE status='done'")->fetchColumn();
+    $totalProjects = (int)db()->query('SELECT COUNT(*) FROM projects')->fetchColumn();
+
+    $mm = db()->prepare('SELECT COALESCE(SUM(minutes),0) FROM time_entries WHERE log_date BETWEEN ? AND ?');
+    $mm->execute([$mf, $mt]);
+    $monthMinutes = (int)$mm->fetchColumn();
+
+    return [
+        'total_users'    => $totalUsers,
+        'active_users'   => $activeUsers,
+        'total_tasks'    => $totalTasks,
+        'done_tasks'     => $doneTasks,
+        'total_projects' => $totalProjects,
+        'month_minutes'  => $monthMinutes,
+    ];
+}
+
+/** Per-user leaderboard: hours (this month) + task counts. */
+function admin_user_rows(): array
+{
+    [$mf, $mt] = period_range('month');
+    $out = [];
+    foreach (get_users() as $u) {
+        $mm = db()->prepare('SELECT COALESCE(SUM(minutes),0) FROM time_entries WHERE user_id = ? AND log_date BETWEEN ? AND ?');
+        $mm->execute([$u['id'], $mf, $mt]);
+        $c = user_data_counts((int)$u['id']);
+        $out[] = $u + ['month_minutes' => (int)$mm->fetchColumn()] + $c;
+    }
+    usort($out, fn($a, $b) => $b['month_minutes'] <=> $a['month_minutes']);
+    return $out;
 }
 
 /* ------------------------------------------------------------------ */
@@ -189,21 +231,24 @@ function recent_activity(int $limit = 12): array
 
 function get_projects(?string $status = null): array
 {
+    $uid = scope_uid();
     if ($status) {
-        $stmt = db()->prepare('SELECT * FROM projects WHERE status = ? ORDER BY position, name');
-        $stmt->execute([$status]);
+        $stmt = db()->prepare('SELECT * FROM projects WHERE user_id = ? AND status = ? ORDER BY position, name');
+        $stmt->execute([$uid, $status]);
         return $stmt->fetchAll();
     }
-    return db()->query("SELECT * FROM projects ORDER BY
+    $stmt = db()->prepare("SELECT * FROM projects WHERE user_id = ? ORDER BY
         CASE status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 WHEN 'done' THEN 2 ELSE 3 END,
-        position, name")->fetchAll();
+        position, name");
+    $stmt->execute([$uid]);
+    return $stmt->fetchAll();
 }
 
 function get_project($idOrSlug): ?array
 {
     $col = ctype_digit((string)$idOrSlug) ? 'id' : 'slug';
-    $stmt = db()->prepare("SELECT * FROM projects WHERE {$col} = ? LIMIT 1");
-    $stmt->execute([$idOrSlug]);
+    $stmt = db()->prepare("SELECT * FROM projects WHERE {$col} = ? AND user_id = ? LIMIT 1");
+    $stmt->execute([$idOrSlug, scope_uid()]);
     return $stmt->fetch() ?: null;
 }
 
@@ -214,24 +259,30 @@ function find_or_create_project(string $name, array $extra = []): int
     if ($name === '') {
         return 0;
     }
-    $stmt = db()->prepare('SELECT id FROM projects WHERE LOWER(name) = LOWER(?) LIMIT 1');
-    $stmt->execute([$name]);
+    $uid = scope_uid();
+    $stmt = db()->prepare('SELECT id FROM projects WHERE LOWER(name) = LOWER(?) AND user_id = ? LIMIT 1');
+    $stmt->execute([$name, $uid]);
     $found = $stmt->fetchColumn();
     if ($found) {
         return (int)$found;
     }
-    $count = (int)db()->query('SELECT COUNT(*) FROM projects')->fetchColumn();
+    $count = (int)(function () use ($uid) {
+        $s = db()->prepare('SELECT COUNT(*) FROM projects WHERE user_id = ?'); $s->execute([$uid]); return $s->fetchColumn();
+    })();
     $color = $extra['color'] ?? PROJECT_PALETTE[$count % count(PROJECT_PALETTE)];
     $slug = slugify($name);
-    // Ensure unique slug.
+    // Ensure globally-unique slug (the column is UNIQUE across all users).
+    $slugExists = function (string $s): bool {
+        $q = db()->prepare('SELECT 1 FROM projects WHERE slug = ? LIMIT 1'); $q->execute([$s]); return (bool)$q->fetchColumn();
+    };
     $base = $slug; $i = 2;
-    while (get_project($slug)) { $slug = $base . '-' . $i++; }
+    while ($slugExists($slug)) { $slug = $base . '-' . $i++; }
 
-    $stmt = db()->prepare('INSERT INTO projects(name, slug, description, color, icon, status, position)
-        VALUES(?, ?, ?, ?, ?, ?, ?)');
+    $stmt = db()->prepare('INSERT INTO projects(name, slug, description, color, icon, status, position, user_id)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([
         $name, $slug, $extra['description'] ?? '', $color,
-        $extra['icon'] ?? '📁', $extra['status'] ?? 'active', $count,
+        $extra['icon'] ?? '📁', $extra['status'] ?? 'active', $count, $uid,
     ]);
     $id = (int)db()->lastInsertId();
     log_activity('project_created', $name, ['id' => $id]);
@@ -269,8 +320,8 @@ function project_stats(int $projectId): array
 
 function get_task(int $id): ?array
 {
-    $stmt = db()->prepare('SELECT * FROM tasks WHERE id = ?');
-    $stmt->execute([$id]);
+    $stmt = db()->prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?');
+    $stmt->execute([$id, scope_uid()]);
     return $stmt->fetch() ?: null;
 }
 
@@ -280,8 +331,8 @@ function get_task(int $id): ?array
  */
 function get_tasks(array $f = []): array
 {
-    $where = [];
-    $args = [];
+    $where = ['t.user_id = ?'];
+    $args = [scope_uid()];
     // Columns are qualified with t. because the projects join also has status/description/etc.
     if (isset($f['project_id'])) { $where[] = 't.project_id = ?'; $args[] = $f['project_id']; }
     if (!empty($f['status'])) {
@@ -321,12 +372,12 @@ function today_tasks(): array
     $today = date('Y-m-d');
     $stmt = db()->prepare("SELECT t.*, p.name AS project_name, p.color AS project_color, p.icon AS project_icon
         FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
-        WHERE t.task_date = ? OR (t.status IN ('todo','in_progress','blocked') AND t.task_date <= ?)
+        WHERE t.user_id = ? AND (t.task_date = ? OR (t.status IN ('todo','in_progress','blocked') AND t.task_date <= ?))
         ORDER BY
           CASE t.status WHEN 'in_progress' THEN 0 WHEN 'blocked' THEN 1 WHEN 'todo' THEN 2 ELSE 3 END,
           CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
           t.position, t.id DESC");
-    $stmt->execute([$today, $today]);
+    $stmt->execute([scope_uid(), $today, $today]);
     return $stmt->fetchAll();
 }
 
@@ -348,8 +399,8 @@ function create_task(array $data): int
     $completedAt = $status === 'done' ? date('Y-m-d H:i:s') : null;
 
     $stmt = db()->prepare('INSERT INTO tasks
-        (project_id, title, description, status, type, priority, estimate_min, spent_min, task_date, completed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        (project_id, title, description, status, type, priority, estimate_min, spent_min, task_date, completed_at, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([
         $projectId,
         $title,
@@ -361,6 +412,7 @@ function create_task(array $data): int
         (int)($data['spent_min'] ?? 0),
         $data['task_date'] ?? date('Y-m-d'),
         $completedAt,
+        scope_uid(),
     ]);
     $id = (int)db()->lastInsertId();
 
@@ -408,8 +460,8 @@ function update_task(int $id, array $fields): bool
 
 function delete_task(int $id): bool
 {
-    $stmt = db()->prepare('DELETE FROM tasks WHERE id = ?');
-    return $stmt->execute([$id]);
+    $stmt = db()->prepare('DELETE FROM tasks WHERE id = ? AND user_id = ?');
+    return $stmt->execute([$id, scope_uid()]);
 }
 
 /* ------------------------------------------------------------------ */
@@ -419,9 +471,9 @@ function delete_task(int $id): bool
 function add_time_entry(int $taskId, int $minutes, ?string $date = null, string $note = ''): int
 {
     $task = get_task($taskId);
-    $stmt = db()->prepare('INSERT INTO time_entries(task_id, project_id, minutes, log_date, note)
-        VALUES(?, ?, ?, ?, ?)');
-    $stmt->execute([$taskId, $task['project_id'] ?? null, $minutes, $date ?: date('Y-m-d'), $note]);
+    $stmt = db()->prepare('INSERT INTO time_entries(task_id, project_id, minutes, log_date, note, user_id)
+        VALUES(?, ?, ?, ?, ?, ?)');
+    $stmt->execute([$taskId, $task['project_id'] ?? null, $minutes, $date ?: date('Y-m-d'), $note, scope_uid()]);
     $id = (int)db()->lastInsertId();
     recompute_task_spent($taskId);
     return $id;
@@ -437,9 +489,11 @@ function recompute_task_spent(int $taskId): void
 /** Currently running timer (a time_entry with started_at set, no minutes yet), if any. */
 function running_timer(): ?array
 {
-    $row = db()->query("SELECT te.*, t.title AS task_title, t.id AS task_id
+    $stmt = db()->prepare("SELECT te.*, t.title AS task_title, t.id AS task_id
         FROM time_entries te JOIN tasks t ON t.id = te.task_id
-        WHERE te.started_at IS NOT NULL AND te.minutes = 0 ORDER BY te.id DESC LIMIT 1")->fetch();
+        WHERE te.user_id = ? AND te.started_at IS NOT NULL AND te.minutes = 0 ORDER BY te.id DESC LIMIT 1");
+    $stmt->execute([scope_uid()]);
+    $row = $stmt->fetch();
     return $row ?: null;
 }
 
@@ -449,16 +503,16 @@ function running_timer(): ?array
 
 function minutes_in_period(string $from, string $to): int
 {
-    $stmt = db()->prepare('SELECT COALESCE(SUM(minutes),0) FROM time_entries WHERE log_date BETWEEN ? AND ?');
-    $stmt->execute([$from, $to]);
+    $stmt = db()->prepare('SELECT COALESCE(SUM(minutes),0) FROM time_entries WHERE user_id = ? AND log_date BETWEEN ? AND ?');
+    $stmt->execute([scope_uid(), $from, $to]);
     return (int)$stmt->fetchColumn();
 }
 
 function tasks_done_in_period(string $from, string $to): int
 {
-    $stmt = db()->prepare("SELECT COUNT(*) FROM tasks WHERE status='done'
+    $stmt = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status='done'
         AND date(COALESCE(completed_at, task_date)) BETWEEN ? AND ?");
-    $stmt->execute([$from, $to]);
+    $stmt->execute([scope_uid(), $from, $to]);
     return (int)$stmt->fetchColumn();
 }
 
@@ -468,16 +522,20 @@ function stats_overview(): array
     [$wf, $wt] = period_range('week');
     $today = date('Y-m-d');
 
-    $activeProjects = (int)db()->query("SELECT COUNT(*) FROM projects WHERE status='active'")->fetchColumn();
-    $openTasks = (int)db()->query("SELECT COUNT(*) FROM tasks WHERE status IN ('todo','in_progress','blocked')")->fetchColumn();
+    $uid = scope_uid();
+    $ap = db()->prepare("SELECT COUNT(*) FROM projects WHERE user_id = ? AND status='active'"); $ap->execute([$uid]);
+    $activeProjects = (int)$ap->fetchColumn();
+    $ot = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status IN ('todo','in_progress','blocked')"); $ot->execute([$uid]);
+    $openTasks = (int)$ot->fetchColumn();
 
     // "Newly built" this month = completed feature-type tasks.
-    $stmt = db()->prepare("SELECT COUNT(*) FROM tasks WHERE type='feature' AND status='done'
+    $stmt = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND type='feature' AND status='done'
         AND date(COALESCE(completed_at, task_date)) BETWEEN ? AND ?");
-    $stmt->execute([$mf, $mt]);
+    $stmt->execute([$uid, $mf, $mt]);
     $builtThisMonth = (int)$stmt->fetchColumn();
 
-    $goalMin = (int)setting('daily_hours_goal', '6') * 60;
+    $u = get_user($uid);
+    $goalMin = (int)(($u['daily_goal'] ?? setting('daily_hours_goal', '6'))) * 60;
 
     return [
         'hours_today_min'   => minutes_in_period($today, $today),
@@ -498,8 +556,11 @@ function stats_overview(): array
 /** Consecutive days (ending today or yesterday) with at least one logged minute or completed task. */
 function active_day_streak(): int
 {
-    $days = db()->query("SELECT log_date FROM time_entries WHERE minutes > 0
-        UNION SELECT date(COALESCE(completed_at, task_date)) FROM tasks WHERE status='done'")->fetchAll(PDO::FETCH_COLUMN);
+    $uid = scope_uid();
+    $stmt = db()->prepare("SELECT log_date FROM time_entries WHERE user_id = ? AND minutes > 0
+        UNION SELECT date(COALESCE(completed_at, task_date)) FROM tasks WHERE user_id = ? AND status='done'");
+    $stmt->execute([$uid, $uid]);
+    $days = $stmt->fetchAll(PDO::FETCH_COLUMN);
     $set = array_flip($days);
     $streak = 0;
     $cursor = time();
@@ -518,9 +579,9 @@ function active_day_streak(): int
 function hours_by_day(int $days = 14): array
 {
     $stmt = db()->prepare('SELECT log_date, COALESCE(SUM(minutes),0) m FROM time_entries
-        WHERE log_date >= ? GROUP BY log_date');
+        WHERE user_id = ? AND log_date >= ? GROUP BY log_date');
     $from = date('Y-m-d', strtotime("-" . ($days - 1) . " days"));
-    $stmt->execute([$from]);
+    $stmt->execute([scope_uid(), $from]);
     $map = [];
     foreach ($stmt->fetchAll() as $r) $map[$r['log_date']] = (int)$r['m'];
 
@@ -534,7 +595,9 @@ function hours_by_day(int $days = 14): array
 
 function status_breakdown(): array
 {
-    $rows = db()->query("SELECT status, COUNT(*) c FROM tasks GROUP BY status")->fetchAll();
+    $stmt = db()->prepare("SELECT status, COUNT(*) c FROM tasks WHERE user_id = ? GROUP BY status");
+    $stmt->execute([scope_uid()]);
+    $rows = $stmt->fetchAll();
     $out = [];
     foreach (STATUS_META as $key => $meta) $out[$key] = ['label' => $meta['label'], 'color' => $meta['color'], 'count' => 0];
     foreach ($rows as $r) if (isset($out[$r['status']])) $out[$r['status']]['count'] = (int)$r['c'];
@@ -547,8 +610,9 @@ function hours_by_project(string $period = 'month'): array
     [$from, $to] = period_range($period);
     $stmt = db()->prepare("SELECT p.id, p.name, p.color, p.icon, COALESCE(SUM(te.minutes),0) m
         FROM projects p LEFT JOIN time_entries te ON te.project_id = p.id AND te.log_date BETWEEN ? AND ?
+        WHERE p.user_id = ?
         GROUP BY p.id HAVING m > 0 ORDER BY m DESC");
-    $stmt->execute([$from, $to]);
+    $stmt->execute([$from, $to, scope_uid()]);
     return $stmt->fetchAll();
 }
 
@@ -558,8 +622,8 @@ function completed_tasks(string $period = 'month', ?string $type = null): array
     [$from, $to] = period_range($period);
     $sql = "SELECT t.*, p.name AS project_name, p.color AS project_color, p.icon AS project_icon
         FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
-        WHERE t.status='done' AND date(COALESCE(t.completed_at, t.task_date)) BETWEEN ? AND ?";
-    $args = [$from, $to];
+        WHERE t.user_id = ? AND t.status='done' AND date(COALESCE(t.completed_at, t.task_date)) BETWEEN ? AND ?";
+    $args = [scope_uid(), $from, $to];
     if ($type) { $sql .= ' AND t.type = ?'; $args[] = $type; }
     $sql .= ' ORDER BY COALESCE(t.completed_at, t.task_date) DESC';
     $stmt = db()->prepare($sql);

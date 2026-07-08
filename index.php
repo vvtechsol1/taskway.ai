@@ -1,41 +1,66 @@
 <?php
 /**
- * Taskway — front controller / router.
- * Usage: index.php?page=dashboard  (default page is the dashboard)
+ * Taskway — front controller / router (multi-user).
+ * index.php?page=dashboard  (default). Auth required for everything except login/signup.
  */
 
 require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/auth.php';
 
 $page = preg_replace('/[^a-z0-9_]/', '', (string)($_GET['page'] ?? 'dashboard'));
 
-// Auth-free routes.
+/* ---- Public routes ------------------------------------------------ */
 if ($page === 'logout') {
     logout();
     redirect(page_url('login'));
 }
 
 if ($page === 'login') {
-    if (!auth_enabled() || is_logged_in()) {
-        redirect(page_url('dashboard'));
-    }
+    if (is_logged_in()) redirect(page_url('dashboard'));
     $error = '';
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (attempt_login((string)($_POST['password'] ?? ''))) {
+        if (attempt_login((string)($_POST['login'] ?? ''), (string)($_POST['password'] ?? ''))) {
             redirect(page_url('dashboard'));
         }
-        $error = 'Incorrect password. Try again.';
+        $error = 'Incorrect username or password.';
     }
     require __DIR__ . '/pages/login.php';
     exit;
 }
 
-// Everything below requires auth (when enabled).
-require_auth();
+if ($page === 'signup') {
+    if (is_logged_in()) redirect(page_url('dashboard'));
+    if (setting('allow_signup') !== '1') redirect(page_url('login'));
+    $error = '';
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $r = create_user([
+            'username' => $_POST['username'] ?? '',
+            'name'     => $_POST['name'] ?? '',
+            'email'    => $_POST['email'] ?? '',
+            'password' => $_POST['password'] ?? '',
+            'role'     => 'user',
+        ]);
+        if (isset($r['error'])) {
+            $error = $r['error'];
+        } else {
+            session_regenerate_id(true);
+            $_SESSION['uid'] = $r['id'];
+            redirect(page_url('dashboard'));
+        }
+    }
+    require __DIR__ . '/pages/signup.php';
+    exit;
+}
 
-$pages = ['dashboard', 'braindump', 'tasks', 'board', 'projects', 'project', 'analytics', 'settings'];
+/* ---- Everything below requires a logged-in user ------------------- */
+require_login();
+
+$adminPages = ['users'];
+$pages = ['dashboard', 'braindump', 'tasks', 'board', 'projects', 'project', 'analytics', 'settings', 'users'];
 if (!in_array($page, $pages, true)) {
     $page = 'dashboard';
+}
+if (in_array($page, $adminPages, true) && !is_super_admin()) {
+    redirect(page_url('dashboard'));
 }
 
 $file = __DIR__ . '/pages/' . $page . '.php';
@@ -44,7 +69,7 @@ if (!is_file($file)) {
     $ACTIVE = 'dashboard';
     $PAGE_TITLE = 'Not found';
     require __DIR__ . '/partials/header.php';
-    echo '<div class="empty"><span class="emoji">🧭</span><h4>Page not found</h4><p>That page doesn\'t exist yet.</p></div>';
+    echo '<div class="empty"><span class="emoji">🧭</span><h4>Page not found</h4></div>';
     require __DIR__ . '/partials/footer.php';
     exit;
 }

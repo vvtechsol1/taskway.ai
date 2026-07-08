@@ -10,7 +10,8 @@ $byDay     = hours_by_day(14);
 $statusBd  = status_breakdown();
 $projects  = get_projects('active');
 $activity  = recent_activity(7);
-$userName  = setting('user_name', 'there');
+$scopeUser = get_user(scope_uid());
+$userName  = $scopeUser['name'] ?: $scopeUser['username'];
 $goalMin   = $stats['daily_goal_min'];
 $timer     = running_timer();
 

@@ -1,4 +1,4 @@
-<?php /** Standalone login screen (no app shell). Expects $error. */ ?>
+<?php /** Login screen (multi-user). Expects $error. */ ?>
 <!doctype html>
 <html lang="en" data-theme="<?= esc(setting('theme', 'light')) ?>">
 <head>
@@ -22,11 +22,18 @@
       <?php endif; ?>
       <form method="post" action="<?= page_url('login') ?>">
         <div class="field">
+          <label class="fld" for="login">Username or email</label>
+          <input class="input" type="text" id="login" name="login" autofocus autocomplete="username" placeholder="you">
+        </div>
+        <div class="field">
           <label class="fld" for="pw">Password</label>
-          <input class="input" type="password" id="pw" name="password" autofocus placeholder="••••••••">
+          <input class="input" type="password" id="pw" name="password" autocomplete="current-password" placeholder="••••••••">
         </div>
         <button class="btn btn-primary btn-lg" style="width:100%;margin-top:18px;">Sign in</button>
       </form>
+      <?php if (setting('allow_signup') === '1'): ?>
+        <p class="center small muted mt-4" style="margin-bottom:0">No account? <a href="<?= page_url('signup') ?>" style="color:var(--primary);font-weight:700">Create one</a></p>
+      <?php endif; ?>
     </div>
     <p class="center muted small mt-4">Taskway · your AI-moderated work OS</p>
   </div>

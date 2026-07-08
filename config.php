@@ -41,4 +41,5 @@ if (!is_dir(DATA_DIR)) {
 
 require_once BASE_DIR . '/db.php';
 require_once BASE_DIR . '/helpers.php';
+require_once BASE_DIR . '/auth.php';
 require_once BASE_DIR . '/partials/ui.php';
