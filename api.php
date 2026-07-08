@@ -36,6 +36,7 @@ try {
                 $id = create_task([
                     'title'        => (string)$t['title'],
                     'project_name' => trim((string)($t['project_name'] ?? '')),
+                    'auto_project' => false,   // the Brain Dump preview already decided the project
                     'status'       => in_array($t['status'] ?? '', ['todo','in_progress','done','blocked'], true) ? $t['status'] : 'todo',
                     'type'         => in_array($t['type'] ?? '', ['feature','improvement','bug','research','task'], true) ? $t['type'] : 'task',
                     'priority'     => in_array($t['priority'] ?? '', ['low','normal','high','urgent'], true) ? $t['priority'] : 'normal',

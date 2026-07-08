@@ -382,18 +382,57 @@ function today_tasks(): array
 }
 
 /**
+ * Auto-link free text to an existing project when a word in the text matches a
+ * project's name (e.g. "fix casebazar checkout" -> the "Casebazar React" project).
+ * Returns the best-matching project id for the current user, or 0.
+ */
+function match_project_for_text(string $text): int
+{
+    // Normalise: punctuation -> spaces, lowercased, padded for whole-word matching.
+    $hay = ' ' . mb_strtolower(preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $text) ?? $text) . ' ';
+    static $stop = ['the','and','for','a','an','of','to','in','on','app','apps','web','website',
+        'api','apis','new','old','react','native','ios','android','use','using','page','site'];
+
+    $best = 0; $bestScore = 0;
+    foreach (get_projects() as $p) {
+        $name = mb_strtolower(trim((string)$p['name']));
+        if ($name === '') continue;
+        $score = 0;
+        if (mb_strpos($hay, ' ' . $name . ' ') !== false) {
+            $score = 1000 + mb_strlen($name);                 // whole project name mentioned
+        } else {
+            foreach (preg_split('/\s+/u', $name) as $w) {
+                $w = trim($w);
+                if (mb_strlen($w) < 3 || in_array($w, $stop, true)) continue;
+                if (mb_strpos($hay, ' ' . $w . ' ') !== false) {
+                    $score = max($score, mb_strlen($w));       // longer distinctive word wins
+                }
+            }
+        }
+        if ($score > $bestScore) { $bestScore = $score; $best = (int)$p['id']; }
+    }
+    return $best;
+}
+
+/**
  * Create a task. $data keys: title, project_id|project_name, description, status,
- * type, priority, estimate_min, spent_min, task_date. Returns task id.
+ * type, priority, estimate_min, spent_min, task_date, auto_project (default true).
+ * When no project is given and auto_project is on, links to a project named in the title.
+ * Returns task id.
  */
 function create_task(array $data): int
 {
     $title = trim((string)($data['title'] ?? ''));
     if ($title === '') return 0;
 
-    $projectId = $data['project_id'] ?? null;
+    $projectId = !empty($data['project_id']) ? (int)$data['project_id'] : 0;
     if (!$projectId && !empty($data['project_name'])) {
-        $projectId = find_or_create_project((string)$data['project_name']) ?: null;
+        $projectId = find_or_create_project((string)$data['project_name']);
     }
+    if (!$projectId && ($data['auto_project'] ?? true)) {
+        $projectId = match_project_for_text($title . ' ' . (string)($data['description'] ?? ''));
+    }
+    $projectId = $projectId ?: null;
 
     $status = $data['status'] ?? 'todo';
     $completedAt = $status === 'done' ? date('Y-m-d H:i:s') : null;

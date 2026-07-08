@@ -42,13 +42,28 @@ const KW_TODO_UR    = ['karna hai', 'karni hai', 'karna he', 'karni he', 'krna h
 function parse_braindump(string $text, array $opts = []): array
 {
     $provider = setting('ai_provider', 'local');
+    $result = null;
     if ($provider === 'claude' && trim((string)setting('claude_api_key')) !== '') {
-        $llm = claude_parse($text, $opts);
-        if ($llm !== null) {
-            return $llm;
+        $result = claude_parse($text, $opts);
+    }
+    if ($result === null) {
+        $result = local_parse($text, $opts);
+    }
+
+    // Auto-link any task without a project to an existing project named in its title.
+    foreach ($result['tasks'] as &$t) {
+        if (($t['project_name'] ?? '') === '') {
+            $pid = match_project_for_text($t['title']);
+            if ($pid && ($p = get_project($pid))) {
+                $t['project_name'] = $p['name'];
+                if (!in_array($p['name'], $result['projects'], true)) {
+                    $result['projects'][] = $p['name'];
+                }
+            }
         }
     }
-    return local_parse($text, $opts);
+    unset($t);
+    return $result;
 }
 
 /* ================================================================== */
