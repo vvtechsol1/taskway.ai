@@ -1,0 +1,17 @@
+# Local database (auto-created on first run; keep your data private)
+/data/*.sqlite
+/data/*.sqlite-wal
+/data/*.sqlite-shm
+
+# Logs & OS cruft
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+
+# Claude Code local settings
+.claude/
