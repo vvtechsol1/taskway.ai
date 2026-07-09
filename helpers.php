@@ -226,6 +226,74 @@ function admin_user_rows(): array
 }
 
 /* ------------------------------------------------------------------ */
+/* Attendance (check-in / check-out)                                   */
+/* ------------------------------------------------------------------ */
+
+/** The user's currently-open (checked-in, not yet checked-out) session, if any. */
+function current_attendance(): ?array
+{
+    $stmt = db()->prepare('SELECT * FROM attendance WHERE user_id = ? AND check_out IS NULL ORDER BY id DESC LIMIT 1');
+    $stmt->execute([current_user_id()]);
+    return $stmt->fetch() ?: null;
+}
+
+function attendance_check_in(): array
+{
+    if (current_attendance()) return ['error' => 'You are already checked in.'];
+    $stmt = db()->prepare("INSERT INTO attendance(user_id, check_in, log_date)
+        VALUES(?, datetime('now','localtime'), date('now','localtime'))");
+    $stmt->execute([current_user_id()]);
+    log_activity('attendance', 'Checked in', []);
+    return ['id' => (int)db()->lastInsertId(), 'attendance' => current_attendance()];
+}
+
+function attendance_check_out(): array
+{
+    $a = current_attendance();
+    if (!$a) return ['error' => 'You are not checked in.'];
+    $minutes = max(0, (int)round((time() - strtotime($a['check_in'])) / 60));
+    $stmt = db()->prepare("UPDATE attendance SET check_out = datetime('now','localtime'), minutes = ? WHERE id = ?");
+    $stmt->execute([$minutes, $a['id']]);
+    log_activity('attendance', 'Checked out · ' . fmt_min($minutes), ['minutes' => $minutes]);
+    return ['minutes' => $minutes];
+}
+
+/** Attendance rows for a date range (newest first). */
+function attendance_records(string $from, string $to): array
+{
+    $stmt = db()->prepare('SELECT * FROM attendance WHERE user_id = ? AND log_date BETWEEN ? AND ? ORDER BY id DESC');
+    $stmt->execute([current_user_id(), $from, $to]);
+    return $stmt->fetchAll();
+}
+
+/** Total attended minutes in a period (completed sessions + the live one so far). */
+function attendance_minutes(string $from, string $to): int
+{
+    $stmt = db()->prepare("SELECT COALESCE(SUM(minutes),0) FROM attendance
+        WHERE user_id = ? AND check_out IS NOT NULL AND log_date BETWEEN ? AND ?");
+    $stmt->execute([current_user_id(), $from, $to]);
+    $total = (int)$stmt->fetchColumn();
+
+    // Add the running session if it falls in the range.
+    $open = current_attendance();
+    if ($open) {
+        $d = substr($open['check_in'], 0, 10);
+        if ($d >= $from && $d <= $to) {
+            $total += max(0, (int)round((time() - strtotime($open['check_in'])) / 60));
+        }
+    }
+    return $total;
+}
+
+/** Distinct days present in a period. */
+function attendance_days(string $from, string $to): int
+{
+    $stmt = db()->prepare('SELECT COUNT(DISTINCT log_date) FROM attendance WHERE user_id = ? AND log_date BETWEEN ? AND ?');
+    $stmt->execute([current_user_id(), $from, $to]);
+    return (int)$stmt->fetchColumn();
+}
+
+/* ------------------------------------------------------------------ */
 /* Projects                                                            */
 /* ------------------------------------------------------------------ */
 

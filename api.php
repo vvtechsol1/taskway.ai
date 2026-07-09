@@ -145,6 +145,20 @@ try {
         case 'stats':
             json_response(['ok' => true, 'stats' => stats_overview(), 'timer' => running_timer()]);
 
+        /* ---- Attendance (check in / out) ------------------------- */
+        case 'attendance_checkin':
+            $r = attendance_check_in();
+            if (isset($r['error'])) json_response(['ok' => false, 'error' => $r['error']], 400);
+            json_response(['ok' => true] + $r);
+
+        case 'attendance_checkout':
+            $r = attendance_check_out();
+            if (isset($r['error'])) json_response(['ok' => false, 'error' => $r['error']], 400);
+            json_response(['ok' => true] + $r);
+
+        case 'attendance_status':
+            json_response(['ok' => true, 'attendance' => current_attendance()]);
+
         /* ---- Super admin: user management ------------------------ */
         case 'admin_create_user':
             if (!is_super_admin()) json_response(['ok' => false, 'error' => 'Admins only.'], 403);

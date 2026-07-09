@@ -117,6 +117,18 @@
     if (openM) { const m = document.getElementById(openM.getAttribute('data-open-modal')); if (m) m.classList.add('open'); }
     const closeM = e.target.closest('[data-close-modal]');
     if (closeM) { const back = closeM.closest('.modal-back'); if (back) back.classList.remove('open'); }
+
+    // Attendance check in / check out
+    const att = e.target.closest('[data-attendance]');
+    if (att) {
+      const action = att.getAttribute('data-attendance');
+      att.disabled = true;
+      try {
+        const r = await TW.api('attendance_' + action, {});
+        TW.toast(action === 'checkin' ? 'Checked in ✅' : ('Checked out · ' + TWChart.fmtMin(r.minutes || 0)));
+        setTimeout(() => location.reload(), 550);
+      } catch (err) { TW.toast(err.message, 'err'); att.disabled = false; }
+    }
   });
 
   // Esc closes the top-most open modal (deliberate, not an accidental outside-click).
@@ -190,6 +202,22 @@
         setTimeout(() => location.reload(), 400);
       } catch (err) { TW.toast(err.message, 'err'); }
     });
+  }
+
+  /* ---------- Live elapsed timers (attendance, etc.) ---------- */
+  const elapsers = document.querySelectorAll('.live-elapsed[data-elapsed]');
+  if (elapsers.length) {
+    const pad = (n) => (n < 10 ? '0' : '') + n;
+    elapsers.forEach((el) => { el._start = Date.now() - (parseInt(el.dataset.elapsed, 10) || 0) * 1000; });
+    const tickElapsed = () => {
+      elapsers.forEach((el) => {
+        let s = Math.max(0, Math.floor((Date.now() - el._start) / 1000));
+        const h = Math.floor(s / 3600); s %= 3600;
+        el.textContent = pad(h) + ':' + pad(Math.floor(s / 60)) + ':' + pad(s % 60);
+      });
+    };
+    tickElapsed();
+    setInterval(tickElapsed, 1000);
   }
 
   /* ---------- Live timer ticker in topbar ---------- */

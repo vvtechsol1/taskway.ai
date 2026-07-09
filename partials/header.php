@@ -8,6 +8,7 @@ $theme = setting('theme', 'light');
 $me = current_user();
 $viewingUid = (!empty($_SESSION['view_uid']) && is_super_admin()) ? (int)$_SESSION['view_uid'] : 0;
 $viewingUser = $viewingUid ? get_user($viewingUid) : null;
+$att = current_attendance();
 
 // Per-user nav badges (namespaced so they never collide with a page's own vars).
 $nb = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status IN ('todo','in_progress','blocked')");
@@ -24,6 +25,7 @@ $nav = [
     ['board',     '📋', 'Board',     null],
     ['projects',  '📁', 'Projects',  $navActiveProjects ?: null],
     ['analytics', '📈', 'Analytics', null],
+    ['attendance','🕐', 'Attendance', null],
 ];
 ?>
 <!doctype html>
@@ -88,6 +90,13 @@ $nav = [
       </div>
       <div class="topbar-right">
         <?= $TOPBAR_ACTIONS ?? '' ?>
+        <?php if ($att): ?>
+          <button class="btn" style="background:var(--danger-soft);color:var(--coral);font-weight:700" data-attendance="checkout" title="Check out">
+            <span class="live-dot"></span> <span class="live-elapsed" data-elapsed="<?= max(0, time() - strtotime($att['check_in'])) ?>">00:00:00</span> · Check out
+          </button>
+        <?php else: ?>
+          <button class="btn" style="background:var(--success-soft);color:var(--mint);font-weight:700" data-attendance="checkin" title="Check in">🟢 Check in</button>
+        <?php endif; ?>
         <button class="icon-btn" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">🌙</button>
         <a href="<?= page_url('braindump') ?>" class="btn btn-primary"><span>＋</span> Brain Dump</a>
       </div>

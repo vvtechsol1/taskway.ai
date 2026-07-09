@@ -96,6 +96,21 @@ function db_migrate(PDO $pdo): void
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_time_date ON time_entries(log_date);');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_time_task ON time_entries(task_id);');
 
+    // Attendance: clock in / clock out sessions.
+    $pdo->exec(<<<SQL
+        CREATE TABLE IF NOT EXISTS attendance (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER,
+            check_in   TEXT NOT NULL,
+            check_out  TEXT DEFAULT NULL,
+            minutes    INTEGER DEFAULT 0,
+            log_date   TEXT NOT NULL DEFAULT (date('now','localtime')),
+            note       TEXT DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+    SQL);
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_attendance_user ON attendance(user_id, log_date);');
+
     // Seed default settings once.
     $defaults = [
         'auth_enabled'    => '0',
