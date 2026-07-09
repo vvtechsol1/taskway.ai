@@ -10,6 +10,8 @@ $viewingUid = (!empty($_SESSION['view_uid']) && is_super_admin()) ? (int)$_SESSI
 $viewingUser = $viewingUid ? get_user($viewingUid) : null;
 $att = current_attendance();
 $unread = chat_total_unread(current_user_id());
+$rc = recycle_counts();
+$recTotal = $rc['tasks'] + $rc['projects'];
 
 // Per-user nav badges (namespaced so they never collide with a page's own vars).
 $nb = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status IN ('todo','in_progress','blocked')");
@@ -71,6 +73,10 @@ $nav = [
         </a>
       <?php endif; ?>
       <div class="nav-label">Account</div>
+      <a href="<?= page_url('recycle') ?>" class="nav-item <?= $ACTIVE === 'recycle' ? 'active' : '' ?>">
+        <span class="ic">♻️</span>Recycle Bin
+        <?php if ($recTotal): ?><span class="nav-badge"><?= $recTotal ?></span><?php endif; ?>
+      </a>
       <a href="<?= page_url('settings') ?>" class="nav-item <?= $ACTIVE === 'settings' ? 'active' : '' ?>">
         <span class="ic">⚙️</span>Settings
       </a>

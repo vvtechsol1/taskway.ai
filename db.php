@@ -204,6 +204,14 @@ function db_migrate_users(PDO $pdo): void
         }
     }
 
+    // Soft-delete (recycle bin) column for tasks & projects.
+    foreach (['tasks', 'projects'] as $t) {
+        $cols = $pdo->query("PRAGMA table_info($t)")->fetchAll(PDO::FETCH_COLUMN, 1);
+        if (!in_array('deleted_at', $cols, true)) {
+            $pdo->exec("ALTER TABLE $t ADD COLUMN deleted_at TEXT DEFAULT NULL");
+        }
+    }
+
     // First run: create a super admin and hand it all pre-existing data.
     if ((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 0) {
         // Reuse a legacy single-user password if one was set, else a default.

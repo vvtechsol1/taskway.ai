@@ -300,11 +300,11 @@ function get_projects(?string $status = null): array
 {
     $uid = scope_uid();
     if ($status) {
-        $stmt = db()->prepare('SELECT * FROM projects WHERE user_id = ? AND status = ? ORDER BY position, name');
+        $stmt = db()->prepare('SELECT * FROM projects WHERE user_id = ? AND deleted_at IS NULL AND status = ? ORDER BY position, name');
         $stmt->execute([$uid, $status]);
         return $stmt->fetchAll();
     }
-    $stmt = db()->prepare("SELECT * FROM projects WHERE user_id = ? ORDER BY
+    $stmt = db()->prepare("SELECT * FROM projects WHERE user_id = ? AND deleted_at IS NULL ORDER BY
         CASE status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 WHEN 'done' THEN 2 ELSE 3 END,
         position, name");
     $stmt->execute([$uid]);
@@ -365,7 +365,7 @@ function project_stats(int $projectId): array
             SUM(CASE WHEN status='todo' THEN 1 ELSE 0 END) todo,
             SUM(CASE WHEN status='blocked' THEN 1 ELSE 0 END) blocked,
             COALESCE(SUM(spent_min),0) spent
-        FROM tasks WHERE project_id = ?");
+        FROM tasks WHERE project_id = ? AND deleted_at IS NULL");
     $t->execute([$projectId]);
     $row = $t->fetch() ?: [];
     $total = (int)($row['total'] ?? 0);
@@ -400,6 +400,7 @@ function get_tasks(array $f = []): array
 {
     $where = ['t.user_id = ?'];
     $args = [scope_uid()];
+    $where[] = !empty($f['only_deleted']) ? 't.deleted_at IS NOT NULL' : 't.deleted_at IS NULL';
     // Columns are qualified with t. because the projects join also has status/description/etc.
     if (isset($f['project_id'])) { $where[] = 't.project_id = ?'; $args[] = $f['project_id']; }
     if (!empty($f['status'])) {
@@ -439,7 +440,7 @@ function today_tasks(): array
     $today = date('Y-m-d');
     $stmt = db()->prepare("SELECT t.*, p.name AS project_name, p.color AS project_color, p.icon AS project_icon
         FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
-        WHERE t.user_id = ? AND (t.task_date = ? OR (t.status IN ('todo','in_progress','blocked') AND t.task_date <= ?))
+        WHERE t.user_id = ? AND t.deleted_at IS NULL AND (t.task_date = ? OR (t.status IN ('todo','in_progress','blocked') AND t.task_date <= ?))
         ORDER BY
           CASE t.status WHEN 'in_progress' THEN 0 WHEN 'blocked' THEN 1 WHEN 'todo' THEN 2 ELSE 3 END,
           CASE t.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
@@ -564,10 +565,62 @@ function update_task(int $id, array $fields): bool
     return $stmt->execute($args);
 }
 
+/** Soft-delete: move a task to the recycle bin. */
 function delete_task(int $id): bool
 {
-    $stmt = db()->prepare('DELETE FROM tasks WHERE id = ? AND user_id = ?');
-    return $stmt->execute([$id, scope_uid()]);
+    $stmt = db()->prepare('UPDATE tasks SET deleted_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL');
+    return $stmt->execute([date('Y-m-d H:i:s'), $id, scope_uid()]);
+}
+
+function restore_task(int $id): bool
+{
+    return db()->prepare('UPDATE tasks SET deleted_at = NULL WHERE id = ? AND user_id = ?')->execute([$id, scope_uid()]);
+}
+
+function purge_task(int $id): bool
+{
+    return db()->prepare('DELETE FROM tasks WHERE id = ? AND user_id = ?')->execute([$id, scope_uid()]);
+}
+
+function get_deleted_tasks(): array
+{
+    $stmt = db()->prepare("SELECT t.*, p.name AS project_name, p.color AS project_color, p.icon AS project_icon
+        FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
+        WHERE t.user_id = ? AND t.deleted_at IS NOT NULL ORDER BY t.deleted_at DESC");
+    $stmt->execute([scope_uid()]);
+    return $stmt->fetchAll();
+}
+
+/* ---- Project recycle bin ---- */
+function soft_delete_project(int $id): bool
+{
+    return db()->prepare('UPDATE projects SET deleted_at = ? WHERE id = ? AND user_id = ? AND deleted_at IS NULL')
+        ->execute([date('Y-m-d H:i:s'), $id, scope_uid()]);
+}
+
+function restore_project(int $id): bool
+{
+    return db()->prepare('UPDATE projects SET deleted_at = NULL WHERE id = ? AND user_id = ?')->execute([$id, scope_uid()]);
+}
+
+function purge_project(int $id): bool
+{
+    // Foreign key ON DELETE SET NULL unlinks any tasks from the removed project.
+    return db()->prepare('DELETE FROM projects WHERE id = ? AND user_id = ?')->execute([$id, scope_uid()]);
+}
+
+function get_deleted_projects(): array
+{
+    $stmt = db()->prepare('SELECT * FROM projects WHERE user_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC');
+    $stmt->execute([scope_uid()]);
+    return $stmt->fetchAll();
+}
+
+function recycle_counts(): array
+{
+    $t = db()->prepare('SELECT COUNT(*) FROM tasks WHERE user_id = ? AND deleted_at IS NOT NULL'); $t->execute([scope_uid()]);
+    $p = db()->prepare('SELECT COUNT(*) FROM projects WHERE user_id = ? AND deleted_at IS NOT NULL'); $p->execute([scope_uid()]);
+    return ['tasks' => (int)$t->fetchColumn(), 'projects' => (int)$p->fetchColumn()];
 }
 
 /* ------------------------------------------------------------------ */
@@ -616,7 +669,7 @@ function minutes_in_period(string $from, string $to): int
 
 function tasks_done_in_period(string $from, string $to): int
 {
-    $stmt = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status='done'
+    $stmt = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND deleted_at IS NULL AND status='done'
         AND date(COALESCE(completed_at, task_date)) BETWEEN ? AND ?");
     $stmt->execute([scope_uid(), $from, $to]);
     return (int)$stmt->fetchColumn();
@@ -631,11 +684,11 @@ function stats_overview(): array
     $uid = scope_uid();
     $ap = db()->prepare("SELECT COUNT(*) FROM projects WHERE user_id = ? AND status='active'"); $ap->execute([$uid]);
     $activeProjects = (int)$ap->fetchColumn();
-    $ot = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status IN ('todo','in_progress','blocked')"); $ot->execute([$uid]);
+    $ot = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND deleted_at IS NULL AND status IN ('todo','in_progress','blocked')"); $ot->execute([$uid]);
     $openTasks = (int)$ot->fetchColumn();
 
     // "Newly built" this month = completed feature-type tasks.
-    $stmt = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND type='feature' AND status='done'
+    $stmt = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND deleted_at IS NULL AND type='feature' AND status='done'
         AND date(COALESCE(completed_at, task_date)) BETWEEN ? AND ?");
     $stmt->execute([$uid, $mf, $mt]);
     $builtThisMonth = (int)$stmt->fetchColumn();
@@ -664,7 +717,7 @@ function active_day_streak(): int
 {
     $uid = scope_uid();
     $stmt = db()->prepare("SELECT log_date FROM time_entries WHERE user_id = ? AND minutes > 0
-        UNION SELECT date(COALESCE(completed_at, task_date)) FROM tasks WHERE user_id = ? AND status='done'");
+        UNION SELECT date(COALESCE(completed_at, task_date)) FROM tasks WHERE user_id = ? AND deleted_at IS NULL AND status='done'");
     $stmt->execute([$uid, $uid]);
     $days = $stmt->fetchAll(PDO::FETCH_COLUMN);
     $set = array_flip($days);
@@ -701,7 +754,7 @@ function hours_by_day(int $days = 14): array
 
 function status_breakdown(): array
 {
-    $stmt = db()->prepare("SELECT status, COUNT(*) c FROM tasks WHERE user_id = ? GROUP BY status");
+    $stmt = db()->prepare("SELECT status, COUNT(*) c FROM tasks WHERE user_id = ? AND deleted_at IS NULL GROUP BY status");
     $stmt->execute([scope_uid()]);
     $rows = $stmt->fetchAll();
     $out = [];
@@ -716,7 +769,7 @@ function hours_by_project(string $period = 'month'): array
     [$from, $to] = period_range($period);
     $stmt = db()->prepare("SELECT p.id, p.name, p.color, p.icon, COALESCE(SUM(te.minutes),0) m
         FROM projects p LEFT JOIN time_entries te ON te.project_id = p.id AND te.log_date BETWEEN ? AND ?
-        WHERE p.user_id = ?
+        WHERE p.user_id = ? AND p.deleted_at IS NULL
         GROUP BY p.id HAVING m > 0 ORDER BY m DESC");
     $stmt->execute([$from, $to, scope_uid()]);
     return $stmt->fetchAll();
@@ -728,7 +781,7 @@ function completed_tasks(string $period = 'month', ?string $type = null): array
     [$from, $to] = period_range($period);
     $sql = "SELECT t.*, p.name AS project_name, p.color AS project_color, p.icon AS project_icon
         FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
-        WHERE t.user_id = ? AND t.status='done' AND date(COALESCE(t.completed_at, t.task_date)) BETWEEN ? AND ?";
+        WHERE t.user_id = ? AND t.deleted_at IS NULL AND t.status='done' AND date(COALESCE(t.completed_at, t.task_date)) BETWEEN ? AND ?";
     $args = [scope_uid(), $from, $to];
     if ($type) { $sql .= ' AND t.type = ?'; $args[] = $type; }
     $sql .= ' ORDER BY COALESCE(t.completed_at, t.task_date) DESC';

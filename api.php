@@ -77,6 +77,24 @@ try {
             delete_task($id);
             json_response(['ok' => true]);
 
+        /* ---- Recycle bin (restore / permanent delete) ------------ */
+        case 'restore_task':
+            restore_task((int)($in['id'] ?? 0));
+            json_response(['ok' => true]);
+        case 'purge_task':
+            purge_task((int)($in['id'] ?? 0));
+            json_response(['ok' => true]);
+        case 'restore_project':
+            restore_project((int)($in['id'] ?? 0));
+            json_response(['ok' => true]);
+        case 'purge_project':
+            purge_project((int)($in['id'] ?? 0));
+            json_response(['ok' => true]);
+        case 'empty_recycle':
+            db()->prepare('DELETE FROM tasks WHERE user_id = ? AND deleted_at IS NOT NULL')->execute([scope_uid()]);
+            db()->prepare('DELETE FROM projects WHERE user_id = ? AND deleted_at IS NOT NULL')->execute([scope_uid()]);
+            json_response(['ok' => true]);
+
         /* ---- Time ------------------------------------------------ */
         case 'add_time':
             $id = (int)($in['task_id'] ?? 0);
@@ -140,7 +158,7 @@ try {
         case 'delete_project':
             $id = (int)($in['id'] ?? 0);
             if (!$id || !get_project($id)) json_response(['ok' => false, 'error' => 'Not found.'], 404);
-            db()->prepare('DELETE FROM projects WHERE id = ? AND user_id = ?')->execute([$id, scope_uid()]);
+            soft_delete_project($id);
             json_response(['ok' => true]);
 
         /* ---- Live stats (for polling) ---------------------------- */
