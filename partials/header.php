@@ -9,6 +9,7 @@ $me = current_user();
 $viewingUid = (!empty($_SESSION['view_uid']) && is_super_admin()) ? (int)$_SESSION['view_uid'] : 0;
 $viewingUser = $viewingUid ? get_user($viewingUid) : null;
 $att = current_attendance();
+$unread = chat_total_unread(current_user_id());
 
 // Per-user nav badges (namespaced so they never collide with a page's own vars).
 $nb = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status IN ('todo','in_progress','blocked')");
@@ -26,7 +27,7 @@ $nav = [
     ['projects',  '📁', 'Projects',  $navActiveProjects ?: null],
     ['analytics', '📈', 'Analytics', null],
     ['attendance','🕐', 'Attendance', null],
-    ['messages',  '💬', 'Messages',  chat_total_unread(current_user_id()) ?: null],
+    ['messages',  '💬', 'Messages',  $unread ?: null],
 ];
 ?>
 <!doctype html>
@@ -53,7 +54,11 @@ $nav = [
       <?php foreach ($nav as [$key, $ic, $label, $badge]): ?>
         <a href="<?= page_url($key) ?>" class="nav-item <?= $ACTIVE === $key ? 'active' : '' ?>">
           <span class="ic"><?= $ic ?></span><?= esc($label) ?>
-          <?php if ($badge): ?><span class="nav-badge"><?= (int)$badge ?></span><?php endif; ?>
+          <?php if ($key === 'messages'): ?>
+            <span class="nav-badge" id="navMsgBadge" style="<?= $badge ? '' : 'display:none' ?>"><?= (int)$badge ?></span>
+          <?php elseif ($badge): ?>
+            <span class="nav-badge"><?= (int)$badge ?></span>
+          <?php endif; ?>
         </a>
       <?php endforeach; ?>
     </nav>
@@ -98,6 +103,9 @@ $nav = [
         <?php else: ?>
           <button class="btn" style="background:var(--success-soft);color:var(--mint);font-weight:700" data-attendance="checkin" title="Check in">🟢 Check in</button>
         <?php endif; ?>
+        <a href="<?= page_url('messages') ?>" class="icon-btn" id="notifBell" title="Messages" style="position:relative;text-decoration:none">
+          🔔<span class="notif-badge" id="notifBadge" style="<?= $unread ? '' : 'display:none' ?>"><?= (int)$unread ?></span>
+        </a>
         <button class="icon-btn" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">🌙</button>
         <a href="<?= page_url('braindump') ?>" class="btn btn-primary"><span>＋</span> Brain Dump</a>
       </div>

@@ -106,15 +106,52 @@ function chat_messages(int $convId, int $me, int $afterId = 0): array
     return $stmt->fetchAll();
 }
 
-function chat_send(int $convId, int $me, string $body): array
+/** Save a base64 data-URI (pasted image, attached file, or recorded voice). Returns [path,type,name] or null. */
+function chat_save_attachment(string $dataUri, string $name = ''): ?array
+{
+    if (strpos($dataUri, 'base64,') === false) return null;
+    [$header, $b64] = explode('base64,', $dataUri, 2);
+    if (!preg_match('#^data:([\w/.+-]+)#', $header, $m)) return null;
+    $mime = strtolower($m[1]);
+    $data = base64_decode($b64, true);
+    if ($data === false || $data === '') return null;
+    if (strlen($data) > 6 * 1024 * 1024) return null;   // 6 MB cap
+
+    $map = [
+        'image/png' => 'png', 'image/jpeg' => 'jpg', 'image/jpg' => 'jpg', 'image/gif' => 'gif', 'image/webp' => 'webp',
+        'audio/webm' => 'webm', 'audio/ogg' => 'ogg', 'audio/mpeg' => 'mp3', 'audio/mp3' => 'mp3',
+        'audio/wav' => 'wav', 'audio/x-wav' => 'wav', 'audio/mp4' => 'm4a', 'audio/aac' => 'aac',
+        'application/pdf' => 'pdf',
+    ];
+    if (!isset($map[$mime])) return null;
+    $ext = $map[$mime];
+    $type = str_starts_with($mime, 'image/') ? 'image' : (str_starts_with($mime, 'audio/') ? 'audio' : 'file');
+
+    $dir = BASE_DIR . '/uploads/chat';
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    $fname = date('Ymd') . '_' . bin2hex(random_bytes(7)) . '.' . $ext;
+    if (@file_put_contents($dir . '/' . $fname, $data) === false) return null;
+
+    $clean = $name !== '' ? mb_substr(preg_replace('/[^\w.\- ]+/u', '', $name) ?: '', 0, 80) : '';
+    return ['path' => 'uploads/chat/' . $fname, 'type' => $type, 'name' => $clean ?: ($type . '.' . $ext)];
+}
+
+function chat_send(int $convId, int $me, string $body, ?string $attachment = null, string $attName = ''): array
 {
     $body = trim($body);
-    if ($body === '') return ['error' => 'Empty message.'];
     if (mb_strlen($body) > 4000) $body = mb_substr($body, 0, 4000);
     if (!chat_is_member($convId, $me)) return ['error' => 'Not allowed.'];
 
-    db()->prepare('INSERT INTO messages(conversation_id, user_id, body, created_at) VALUES(?, ?, ?, ?)')
-        ->execute([$convId, $me, $body, date('Y-m-d H:i:s')]);
+    $att = null;
+    if ($attachment !== null && $attachment !== '') {
+        $att = chat_save_attachment($attachment, $attName);
+        if (!$att) return ['error' => 'Unsupported or too-large file (max 6MB; images, audio, or PDF).'];
+    }
+    if ($body === '' && !$att) return ['error' => 'Empty message.'];
+
+    db()->prepare('INSERT INTO messages(conversation_id, user_id, body, attachment, attachment_type, attachment_name, created_at)
+        VALUES(?, ?, ?, ?, ?, ?, ?)')
+        ->execute([$convId, $me, $body, $att['path'] ?? null, $att['type'] ?? null, $att['name'] ?? null, date('Y-m-d H:i:s')]);
     $mid = (int)db()->lastInsertId();
     db()->prepare('UPDATE conversations SET updated_at = ? WHERE id = ?')->execute([date('Y-m-d H:i:s'), $convId]);
     // Sender has implicitly read up to their own message.

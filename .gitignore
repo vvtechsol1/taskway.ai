@@ -15,3 +15,7 @@ desktop.ini
 
 # Claude Code local settings
 .claude/
+
+# Uploaded chat media (keep the folders, not the files)
+uploads/chat/*
+!uploads/chat/.gitkeep

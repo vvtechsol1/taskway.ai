@@ -136,11 +136,19 @@ function db_migrate(PDO $pdo): void
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             conversation_id INTEGER,
             user_id         INTEGER,
-            body            TEXT NOT NULL,
+            body            TEXT NOT NULL DEFAULT '',
+            attachment      TEXT DEFAULT NULL,
+            attachment_type TEXT DEFAULT NULL,
+            attachment_name TEXT DEFAULT NULL,
             created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         );
     SQL);
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_msg_conv ON messages(conversation_id, id);');
+    // Add attachment columns to an already-created messages table.
+    $mcols = $pdo->query("PRAGMA table_info(messages)")->fetchAll(PDO::FETCH_COLUMN, 1);
+    foreach (['attachment', 'attachment_type', 'attachment_name'] as $col) {
+        if (!in_array($col, $mcols, true)) $pdo->exec("ALTER TABLE messages ADD COLUMN $col TEXT DEFAULT NULL");
+    }
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_cm_user ON conversation_members(user_id);');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_cm_conv ON conversation_members(conversation_id);');
 

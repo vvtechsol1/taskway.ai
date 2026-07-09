@@ -70,8 +70,10 @@ require __DIR__ . '/../partials/header.php';
       </header>
       <div class="chat-messages" id="chatMessages"></div>
       <form class="chat-input" id="chatForm">
-        <input type="hidden" id="chatConvId" value="<?= $activeId ?>">
-        <input class="input" id="chatBody" placeholder="Type a message…" autocomplete="off" maxlength="4000" style="flex:1">
+        <input type="file" id="chatFile" accept="image/*,audio/*,application/pdf" style="display:none">
+        <button type="button" class="icon-btn" id="attachBtn" title="Attach image / file">📎</button>
+        <button type="button" class="icon-btn" id="voiceBtn" title="Record voice message">🎤</button>
+        <input class="input" id="chatBody" placeholder="Type a message… (paste an image too)" autocomplete="off" maxlength="4000" style="flex:1">
         <button class="btn btn-primary" type="submit" style="flex:0 0 auto">Send</button>
       </form>
     <?php endif; ?>
@@ -143,7 +145,13 @@ require __DIR__ . '/../partials/header.php';
 .msg.me .bubble { background:var(--primary); color:#fff; border-bottom-right-radius:5px; }
 .msg .meta { font-size:10.5px; color:var(--text-3); padding:0 4px; }
 .msg .sender { font-size:11px; font-weight:700; padding:0 4px; }
-.chat-input { display:flex; gap:10px; padding:14px 16px; border-top:1px solid var(--border); }
+.chat-input { display:flex; gap:8px; align-items:center; padding:12px 14px; border-top:1px solid var(--border); }
+.bubble.media { padding:4px; }
+.chat-img { max-width:240px; max-height:270px; border-radius:11px; display:block; cursor:pointer; }
+.msg audio { max-width:238px; height:40px; display:block; }
+.msg .cap { margin-top:5px; padding:0 5px 3px; }
+.chat-file { color:inherit; font-weight:600; text-decoration:underline; }
+#voiceBtn.rec { background:var(--coral); color:#fff; border-color:var(--coral); animation:pulse-dot 1.1s infinite; }
 .chat-user-row { display:flex; align-items:center; gap:11px; width:100%; padding:8px 10px; border-radius:11px; border:1px solid var(--border); background:var(--surface); cursor:pointer; transition:all var(--dur) var(--ease); }
 .chat-user-row:hover { border-color:var(--primary); background:var(--surface-2); }
 @media (max-width:800px) {
@@ -165,13 +173,22 @@ require __DIR__ . '/../partials/header.php';
   let lastId = 0;
   function esc(s) { return (s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function fmtTime(s) { try { const d = new Date((s || '').replace(' ', 'T')); return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } }
-  function render(m, animate) {
+  const BASE = (window.TASKWAY && window.TASKWAY.base) || '';
+  function render(m) {
     const mine = parseInt(m.user_id) === ME;
     const el = document.createElement('div');
     el.className = 'msg ' + (mine ? 'me' : 'them');
     let html = '';
     if (!mine && isGroup) html += '<div class="sender" style="color:' + esc(m.color || '#6C5CE7') + '">' + esc(m.name || m.username) + '</div>';
-    html += '<div class="bubble">' + esc(m.body) + '</div>';
+    let bubbleClass = 'bubble', content = '';
+    if (m.attachment) {
+      const url = BASE + '/' + m.attachment;
+      if (m.attachment_type === 'image') { content += '<a href="' + url + '" target="_blank" rel="noopener"><img class="chat-img" src="' + url + '" alt="image"></a>'; bubbleClass += ' media'; }
+      else if (m.attachment_type === 'audio') { content += '<audio controls preload="none" src="' + url + '"></audio>'; bubbleClass += ' media'; }
+      else { content += '<a class="chat-file" href="' + url + '" target="_blank" rel="noopener" download>📎 ' + esc(m.attachment_name || 'File') + '</a>'; }
+    }
+    if (m.body) content += (m.attachment ? '<div class="cap">' + esc(m.body) + '</div>' : esc(m.body));
+    html += '<div class="' + bubbleClass + '">' + content + '</div>';
     html += '<div class="meta">' + fmtTime(m.created_at) + '</div>';
     el.innerHTML = html;
     box.appendChild(el);
@@ -188,6 +205,47 @@ require __DIR__ . '/../partials/header.php';
     try { await TW.api('chat_send', { conversation_id: CONV, body: body }); await poll(); }
     catch (err) { TW.toast(err.message, 'err'); input.value = body; }
   });
+  // ---- attachments: file / paste / voice ----
+  const fileInput = document.getElementById('chatFile');
+  function sendFile(file) {
+    if (!file) return;
+    if (file.size > 6 * 1024 * 1024) { TW.toast('File too large (max 6MB)', 'err'); return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        await TW.api('chat_send', { conversation_id: CONV, body: input.value.trim(), attachment: reader.result, attachment_name: file.name || '' });
+        input.value = ''; await poll(); box.scrollTop = box.scrollHeight;
+      } catch (err) { TW.toast(err.message, 'err'); }
+    };
+    reader.onerror = () => TW.toast('Could not read file', 'err');
+    reader.readAsDataURL(file);
+  }
+  document.getElementById('attachBtn').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) sendFile(fileInput.files[0]); fileInput.value = ''; });
+  input.addEventListener('paste', (e) => {
+    const items = (e.clipboardData || {}).items || [];
+    for (const it of items) { if (it.type && it.type.indexOf('image/') === 0) { const f = it.getAsFile(); if (f) { e.preventDefault(); sendFile(f); } } }
+  });
+  let rec = null, chunks = [], recording = false;
+  const voiceBtn = document.getElementById('voiceBtn');
+  voiceBtn.addEventListener('click', async () => {
+    if (recording && rec) { rec.stop(); return; }
+    if (!navigator.mediaDevices || !window.MediaRecorder) { TW.toast('Voice recording not supported here', 'err'); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      rec = new MediaRecorder(stream); chunks = [];
+      rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        recording = false; voiceBtn.classList.remove('rec'); voiceBtn.textContent = '🎤';
+        const blob = new Blob(chunks, { type: (chunks[0] && chunks[0].type) || 'audio/webm' });
+        if (blob.size > 300) sendFile(new File([blob], 'voice.webm', { type: blob.type }));
+      };
+      rec.start(); recording = true; voiceBtn.classList.add('rec'); voiceBtn.textContent = '⏹';
+      TW.toast('Recording… tap ⏹ to send', 'info');
+    } catch (err) { TW.toast('Microphone blocked', 'err'); }
+  });
+
   async function poll() {
     try {
       const r = await TW.api('chat_poll', { conversation_id: CONV, after: lastId });

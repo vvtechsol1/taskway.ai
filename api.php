@@ -182,7 +182,9 @@ try {
 
         case 'chat_send':
             $cid = (int)($in['conversation_id'] ?? 0);
-            $r = chat_send($cid, current_user_id(), (string)($in['body'] ?? ''));
+            $r = chat_send($cid, current_user_id(), (string)($in['body'] ?? ''),
+                isset($in['attachment']) ? (string)$in['attachment'] : null,
+                (string)($in['attachment_name'] ?? ''));
             if (isset($r['error'])) json_response(['ok' => false, 'error' => $r['error']], 400);
             json_response(['ok' => true] + $r);
 

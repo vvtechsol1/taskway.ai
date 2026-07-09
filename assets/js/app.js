@@ -220,6 +220,27 @@
     setInterval(tickElapsed, 1000);
   }
 
+  /* ---------- Global unread-message poller (bell + sidebar badge) ---------- */
+  (function () {
+    const bell = document.getElementById('notifBadge');
+    const navB = document.getElementById('navMsgBadge');
+    if (!bell && !navB) return;
+    const baseTitle = document.title.replace(/^\(\d+\)\s*/, '');
+    let last = -1;
+    async function checkUnread() {
+      try {
+        const r = await TW.api('chat_unread', {});
+        const n = r.unread || 0;
+        [bell, navB].forEach((b) => { if (!b) return; if (n > 0) { b.textContent = n; b.style.display = ''; } else b.style.display = 'none'; });
+        document.title = (n > 0 ? '(' + n + ') ' : '') + baseTitle;
+        if (last >= 0 && n > last) TW.toast('📩 New message', 'info');
+        last = n;
+      } catch (e) {}
+    }
+    checkUnread();
+    setInterval(checkUnread, 12000);
+  })();
+
   /* ---------- Live timer ticker in topbar ---------- */
   const ticker = document.getElementById('timerTicker');
   if (ticker && ticker.dataset.started) {
