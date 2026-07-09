@@ -170,7 +170,7 @@ require __DIR__ . '/../partials/header.php';
           <p>No open tasks for this project. Add one above to keep the momentum going.</p>
         </div>
       <?php else: ?>
-        <?php foreach ($openTasks as $t) render_task($t, ['delete' => true, 'timer' => true]); ?>
+        <?php foreach ($openTasks as $t) render_task($t, ['edit' => true, 'delete' => true, 'timer' => true]); ?>
       <?php endif; ?>
     </div>
 
@@ -183,7 +183,7 @@ require __DIR__ . '/../partials/header.php';
           <div class="card-action"><button class="btn btn-ghost btn-sm" type="button" data-toggle="#doneList">Show / hide</button></div>
         </div>
         <div id="doneList" class="hidden">
-          <?php foreach ($doneTasks as $t) render_task($t, ['delete' => true]); ?>
+          <?php foreach ($doneTasks as $t) render_task($t, ['edit' => true, 'delete' => true]); ?>
         </div>
       </div>
     <?php endif; ?>
@@ -256,5 +256,6 @@ function drawProject() {
 </script>
 
 <?php render_project_editor(); ?>
+<?php render_task_editor(); ?>
 
 <?php require __DIR__ . '/../partials/footer.php'; ?>

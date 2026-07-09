@@ -92,7 +92,7 @@ require __DIR__ . '/../partials/header.php';
           <a href="<?= page_url('braindump') ?>" class="btn btn-primary mt-4">🧠 Open Brain Dump</a>
         </div>
       <?php else: ?>
-        <?php foreach ($openToday as $t) render_task($t, ['remove_on_done' => false]); ?>
+        <?php foreach ($openToday as $t) render_task($t, ['edit' => true]); ?>
         <?php if ($doneToday): ?>
           <div class="divider"></div>
           <div class="small muted mb-4" style="font-weight:700;text-transform:uppercase;letter-spacing:.05em">Completed today · <?= count($doneToday) ?></div>
@@ -156,5 +156,7 @@ function drawDash() {
   TWChart.donut('statusDonut', <?= json_encode(array_values(array_map(fn($s) => ['label' => $s['label'], 'value' => $s['count'], 'color' => $s['color']], $statusBd))) ?>, { size: 130, centerLabel: 'tasks' });
 }
 </script>
+
+<?php render_task_editor(); ?>
 
 <?php require __DIR__ . '/../partials/footer.php'; ?>

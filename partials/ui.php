@@ -66,6 +66,9 @@ function render_task(array $t, array $opts = []): void
       </div>
       <div class="task-side">
         <?php if ($seg): ?><?= status_seg($t) ?><?php endif; ?>
+        <?php if (!empty($opts['edit'])): ?>
+          <button class="icon-btn" title="Edit task" onclick="taskEditorOpen(<?= esc(json_encode(['id' => (int)$t['id'], 'title' => $t['title'], 'project_id' => $t['project_id'], 'status' => $t['status'], 'type' => $t['type'], 'priority' => $t['priority'], 'task_date' => $t['task_date'], 'description' => $t['description']], JSON_UNESCAPED_UNICODE)) ?>)">✏️</button>
+        <?php endif; ?>
         <?php if (!empty($opts['timer'])): ?>
           <button class="icon-btn" data-timer="<?= (int)$t['id'] ?>" title="Start timer">⏱</button>
         <?php endif; ?>
@@ -214,6 +217,102 @@ function render_project_editor(): void
         document.querySelectorAll('.proj-menu.open').forEach(function (m) { if (!k || m !== k.parentElement.querySelector('.proj-menu')) m.classList.remove('open'); });
         if (k) { e.preventDefault(); e.stopPropagation(); k.parentElement.querySelector('.proj-menu').classList.toggle('open'); }
       });
+    })();
+    </script>
+    <?php
+}
+
+/** Shared "edit task" modal + JS. Include once per page whose tasks pass ['edit'=>true]. */
+function render_task_editor(): void
+{
+    $projects = get_projects();
+    ?>
+    <div class="modal-back" id="taskModal">
+      <div class="modal">
+        <div class="modal-head"><h3>✏️ Edit task</h3>
+          <button class="icon-btn" data-close-modal style="margin-left:auto" title="Close">✕</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="teId">
+          <div class="field"><label class="fld" for="teTitle">Title</label>
+            <input class="input" id="teTitle" placeholder="Task title"></div>
+          <div class="field"><label class="fld" for="teProject">Project</label>
+            <select class="select" id="teProject">
+              <option value="">📁 No project</option>
+              <?php foreach ($projects as $p): ?>
+                <option value="<?= (int)$p['id'] ?>"><?= esc(($p['icon'] ?: '📁') . ' ' . $p['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="row wrap" style="gap:14px">
+            <div class="field grow"><label class="fld" for="teStatus">Status</label>
+              <select class="select" id="teStatus">
+                <option value="todo">To do</option><option value="in_progress">Doing</option>
+                <option value="done">Done</option><option value="blocked">Blocked</option>
+              </select></div>
+            <div class="field grow"><label class="fld" for="teType">Type</label>
+              <select class="select" id="teType">
+                <?php foreach (TYPE_META as $k => $m): ?><option value="<?= $k ?>"><?= esc($m['icon'] . ' ' . $m['label']) ?></option><?php endforeach; ?>
+              </select></div>
+          </div>
+          <div class="row wrap" style="gap:14px">
+            <div class="field grow"><label class="fld" for="tePriority">Priority</label>
+              <select class="select" id="tePriority">
+                <?php foreach (PRIORITY_META as $k => $m): ?><option value="<?= $k ?>"><?= esc($m['label']) ?></option><?php endforeach; ?>
+              </select></div>
+            <div class="field grow"><label class="fld" for="teDate">Date</label>
+              <input class="input" type="date" id="teDate"></div>
+          </div>
+          <div class="field"><label class="fld" for="teDesc">Notes <span class="muted">(optional)</span></label>
+            <textarea class="textarea" id="teDesc" style="min-height:70px" placeholder="Extra details…"></textarea></div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-danger" style="margin-right:auto" onclick="taskEditorDelete()">🗑 Delete</button>
+          <button class="btn btn-ghost" data-close-modal>Cancel</button>
+          <button class="btn btn-primary" id="teSave" onclick="taskSave()">Save changes</button>
+        </div>
+      </div>
+    </div>
+    <script>
+    (function () {
+      window.taskEditorOpen = function (t) {
+        document.getElementById('teId').value = t.id;
+        document.getElementById('teTitle').value = t.title || '';
+        document.getElementById('teProject').value = t.project_id || '';
+        document.getElementById('teStatus').value = t.status || 'todo';
+        document.getElementById('teType').value = t.type || 'task';
+        document.getElementById('tePriority').value = t.priority || 'normal';
+        document.getElementById('teDate').value = (t.task_date || '').substring(0, 10);
+        document.getElementById('teDesc').value = t.description || '';
+        document.getElementById('taskModal').classList.add('open');
+        setTimeout(function () { document.getElementById('teTitle').focus(); }, 50);
+      };
+      window.taskSave = async function () {
+        var id = document.getElementById('teId').value;
+        var title = document.getElementById('teTitle').value.trim();
+        if (!title) { TW.toast('Title required', 'info'); return; }
+        var pv = document.getElementById('teProject').value;
+        var btn = document.getElementById('teSave'); btn.disabled = true;
+        try {
+          await TW.api('update_task', {
+            id: parseInt(id), title: title,
+            project_id: pv ? parseInt(pv) : null,
+            status: document.getElementById('teStatus').value,
+            type: document.getElementById('teType').value,
+            priority: document.getElementById('tePriority').value,
+            task_date: document.getElementById('teDate').value,
+            description: document.getElementById('teDesc').value.trim()
+          });
+          TW.toast('Task updated ✓');
+          setTimeout(function () { location.reload(); }, 450);
+        } catch (err) { TW.toast(err.message, 'err'); btn.disabled = false; }
+      };
+      window.taskEditorDelete = async function () {
+        var id = document.getElementById('teId').value;
+        if (!confirm('Delete this task?')) return;
+        try { await TW.api('delete_task', { id: parseInt(id) }); TW.toast('Task deleted'); setTimeout(function () { location.reload(); }, 400); }
+        catch (err) { TW.toast(err.message, 'err'); }
+      };
     })();
     </script>
     <?php

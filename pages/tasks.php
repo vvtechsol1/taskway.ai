@@ -91,7 +91,7 @@ if ($timer) {
  * Render a list of tasks, optionally grouped by project with a subtle header.
  * Headers are skipped when there is only a single group.
  */
-$taskOpts  = ['delete' => true, 'timer' => true, 'show_date' => true];
+$taskOpts  = ['edit' => true, 'delete' => true, 'timer' => true, 'show_date' => true];
 $renderList = function (array $list, bool $group) use ($taskOpts) {
     if (!$group) {
         foreach ($list as $t) render_task($t, $taskOpts);
@@ -316,5 +316,7 @@ require __DIR__ . '/../partials/header.php';
     </details>
   <?php endif; ?>
 <?php endif; ?>
+
+<?php render_task_editor(); ?>
 
 <?php require __DIR__ . '/../partials/footer.php'; ?>
