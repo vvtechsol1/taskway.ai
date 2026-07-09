@@ -159,6 +159,12 @@ try {
         case 'attendance_status':
             json_response(['ok' => true, 'attendance' => current_attendance()]);
 
+        case 'attendance_delete':
+            $id = (int)($in['id'] ?? 0);
+            if (!$id) json_response(['ok' => false, 'error' => 'Bad id.'], 400);
+            db()->prepare('DELETE FROM attendance WHERE id = ? AND user_id = ?')->execute([$id, current_user_id()]);
+            json_response(['ok' => true]);
+
         /* ---- Super admin: user management ------------------------ */
         case 'admin_create_user':
             if (!is_super_admin()) json_response(['ok' => false, 'error' => 'Admins only.'], 403);

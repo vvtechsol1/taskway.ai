@@ -83,7 +83,7 @@ require __DIR__ . '/../partials/header.php';
               <td><span class="badge"><?= count($sessions) ?></span></td>
               <td>
                 <?php foreach ($sessions as $s): ?>
-                  <div class="small" style="margin:2px 0">
+                  <div class="small row" style="margin:2px 0;gap:7px">
                     <strong><?= esc(date('h:i A', strtotime($s['check_in']))) ?></strong>
                     <span class="muted">→</span>
                     <?php if ($s['check_out']): ?>
@@ -92,6 +92,8 @@ require __DIR__ . '/../partials/header.php';
                     <?php else: ?>
                       <span class="badge in_progress"><span class="dot"></span>in progress</span>
                     <?php endif; ?>
+                    <button class="icon-btn" style="width:26px;height:26px;font-size:12px" title="Delete record"
+                      onclick="if(confirm('Delete this attendance record?'))TW.api('attendance_delete',{id:<?= (int)$s['id'] ?>}).then(()=>location.reload()).catch(e=>TW.toast(e.message,'err'))">🗑</button>
                   </div>
                 <?php endforeach; ?>
               </td>
