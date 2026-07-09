@@ -168,6 +168,35 @@ function chat_mark_read(int $convId, int $me): void
         ->execute([$max, $convId, $me]);
 }
 
+/** Delete a chat for the user (leaves it); when nobody's left, the conversation + files are removed. */
+function chat_delete_conversation(int $convId, int $me): array
+{
+    if (!chat_is_member($convId, $me)) return ['error' => 'Not allowed.'];
+    db()->prepare('DELETE FROM conversation_members WHERE conversation_id = ? AND user_id = ?')->execute([$convId, $me]);
+
+    $remaining = (int)db()->query('SELECT COUNT(*) FROM conversation_members WHERE conversation_id = ' . (int)$convId)->fetchColumn();
+    if ($remaining === 0) {
+        $files = db()->query('SELECT attachment FROM messages WHERE conversation_id = ' . (int)$convId . " AND attachment IS NOT NULL AND attachment <> ''")->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($files as $f) { $p = BASE_DIR . '/' . $f; if (is_file($p)) @unlink($p); }
+        db()->prepare('DELETE FROM messages WHERE conversation_id = ?')->execute([$convId]);
+        db()->prepare('DELETE FROM conversations WHERE id = ?')->execute([$convId]);
+    }
+    return ['ok' => true];
+}
+
+/** Delete a single message (only the sender can). Removes its attachment file too. */
+function chat_delete_message(int $msgId, int $me): array
+{
+    $stmt = db()->prepare('SELECT * FROM messages WHERE id = ?');
+    $stmt->execute([$msgId]);
+    $m = $stmt->fetch();
+    if (!$m) return ['error' => 'Message not found.'];
+    if ((int)$m['user_id'] !== $me) return ['error' => 'You can only delete your own messages.'];
+    if (!empty($m['attachment'])) { $p = BASE_DIR . '/' . $m['attachment']; if (is_file($p)) @unlink($p); }
+    db()->prepare('DELETE FROM messages WHERE id = ?')->execute([$msgId]);
+    return ['ok' => true];
+}
+
 function chat_total_unread(int $me): int
 {
     $stmt = db()->prepare('SELECT COALESCE(SUM(x.unread),0) FROM (

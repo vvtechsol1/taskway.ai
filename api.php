@@ -30,7 +30,8 @@ try {
             $tasks = $in['tasks'] ?? [];
             if (!is_array($tasks) || !$tasks) json_response(['ok' => false, 'error' => 'No tasks to add.'], 400);
             $created = 0; $newProjects = [];
-            $before = (int)db()->query('SELECT COUNT(*) FROM projects')->fetchColumn();
+            $projCount = db()->prepare('SELECT COUNT(*) FROM projects WHERE user_id = ?');
+            $projCount->execute([scope_uid()]); $before = (int)$projCount->fetchColumn();
             foreach ($tasks as $t) {
                 if (empty($t['title'])) continue;
                 $id = create_task([
@@ -46,7 +47,7 @@ try {
                 ]);
                 if ($id) $created++;
             }
-            $after = (int)db()->query('SELECT COUNT(*) FROM projects')->fetchColumn();
+            $projCount->execute([scope_uid()]); $after = (int)$projCount->fetchColumn();
             log_activity('braindump', "Added {$created} tasks from Brain Dump", ['count' => $created]);
             json_response(['ok' => true, 'created' => $created, 'new_projects' => max(0, $after - $before)]);
 
@@ -88,8 +89,9 @@ try {
         case 'timer_start':
             $id = (int)($in['task_id'] ?? 0);
             if (!$id) json_response(['ok' => false, 'error' => 'Task required.'], 400);
-            // Stop any existing running timer first.
-            db()->exec("DELETE FROM time_entries WHERE started_at IS NOT NULL AND minutes = 0");
+            // Stop this user's existing running timer first (scoped — never touch others').
+            db()->prepare("DELETE FROM time_entries WHERE user_id = ? AND started_at IS NOT NULL AND minutes = 0")
+                ->execute([current_user_id()]);
             $task = get_task($id);
             $stmt = db()->prepare("INSERT INTO time_entries(task_id, project_id, minutes, started_at, log_date)
                 VALUES(?, ?, 0, ?, ?)");
@@ -202,6 +204,16 @@ try {
 
         case 'chat_unread':
             json_response(['ok' => true, 'unread' => chat_total_unread(current_user_id())]);
+
+        case 'chat_delete_conversation':
+            $r = chat_delete_conversation((int)($in['conversation_id'] ?? 0), current_user_id());
+            if (isset($r['error'])) json_response(['ok' => false, 'error' => $r['error']], 400);
+            json_response(['ok' => true]);
+
+        case 'chat_delete_message':
+            $r = chat_delete_message((int)($in['id'] ?? 0), current_user_id());
+            if (isset($r['error'])) json_response(['ok' => false, 'error' => $r['error']], 400);
+            json_response(['ok' => true]);
 
         /* ---- Super admin: user management ------------------------ */
         case 'admin_create_user':

@@ -17,8 +17,8 @@ $doing = get_tasks($base + ['status' => ['in_progress']] + ($todayOnly ? ['to' =
 
 // Done column: most-recent completions (today only, or last 7 days by default).
 $doneSql = "SELECT t.*, p.name AS project_name, p.color AS project_color, p.icon AS project_icon
-    FROM tasks t LEFT JOIN projects p ON p.id = t.project_id WHERE t.status = 'done'";
-$doneArgs = [];
+    FROM tasks t LEFT JOIN projects p ON p.id = t.project_id WHERE t.status = 'done' AND t.user_id = ?";
+$doneArgs = [scope_uid()];
 if ($proj) { $doneSql .= ' AND t.project_id = ?'; $doneArgs[] = $proj; }
 if ($todayOnly) { $doneSql .= " AND date(COALESCE(t.completed_at, t.task_date)) = ?"; $doneArgs[] = $today; }
 else { $doneSql .= " AND date(COALESCE(t.completed_at, t.task_date)) >= ?"; $doneArgs[] = date('Y-m-d', strtotime('-7 days')); }

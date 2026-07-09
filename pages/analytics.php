@@ -31,8 +31,8 @@ if ($period === 'week') {
     $trendTitle = 'Hours — last 30 days';
 } else { // year → aggregate by month
     $stmt = db()->prepare("SELECT strftime('%Y-%m', log_date) ym, COALESCE(SUM(minutes),0) m
-        FROM time_entries WHERE log_date BETWEEN ? AND ? GROUP BY ym");
-    $stmt->execute([$from, $to]);
+        FROM time_entries WHERE user_id = ? AND log_date BETWEEN ? AND ? GROUP BY ym");
+    $stmt->execute([scope_uid(), $from, $to]);
     $mmap = [];
     foreach ($stmt->fetchAll() as $r) $mmap[$r['ym']] = (int)$r['m'];
     $trendData = [];

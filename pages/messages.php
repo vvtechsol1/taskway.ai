@@ -67,6 +67,7 @@ require __DIR__ . '/../partials/header.php';
                 : esc($activeDisplay['subtitle']) ?>
           </div>
         </div>
+        <button class="icon-btn" onclick="deleteChat()" title="Delete chat" style="flex:0 0 auto">🗑</button>
       </header>
       <div class="chat-messages" id="chatMessages"></div>
       <form class="chat-input" id="chatForm">
@@ -151,6 +152,8 @@ require __DIR__ . '/../partials/header.php';
 .msg audio { max-width:238px; height:40px; display:block; }
 .msg .cap { margin-top:5px; padding:0 5px 3px; }
 .chat-file { color:inherit; font-weight:600; text-decoration:underline; }
+.msg-del { background:none; border:0; color:var(--text-3); cursor:pointer; font:inherit; font-size:10.5px; text-decoration:underline; padding:0; opacity:0; transition:opacity var(--dur); }
+.msg:hover .msg-del { opacity:1; }
 #voiceBtn.rec { background:var(--coral); color:#fff; border-color:var(--coral); animation:pulse-dot 1.1s infinite; }
 .chat-user-row { display:flex; align-items:center; gap:11px; width:100%; padding:8px 10px; border-radius:11px; border:1px solid var(--border); background:var(--surface); cursor:pointer; transition:all var(--dur) var(--ease); }
 .chat-user-row:hover { border-color:var(--primary); background:var(--surface-2); }
@@ -189,8 +192,9 @@ require __DIR__ . '/../partials/header.php';
     }
     if (m.body) content += (m.attachment ? '<div class="cap">' + esc(m.body) + '</div>' : esc(m.body));
     html += '<div class="' + bubbleClass + '">' + content + '</div>';
-    html += '<div class="meta">' + fmtTime(m.created_at) + '</div>';
+    html += '<div class="meta">' + fmtTime(m.created_at) + (mine ? ' · <button class="msg-del" onclick="deleteMsg(this,' + parseInt(m.id) + ')">delete</button>' : '') + '</div>';
     el.innerHTML = html;
+    el.dataset.id = m.id;
     box.appendChild(el);
     lastId = Math.max(lastId, parseInt(m.id));
   }
@@ -254,6 +258,17 @@ require __DIR__ . '/../partials/header.php';
   }
   setInterval(poll, 4000);
   input.focus();
+
+  window.deleteChat = async function () {
+    if (!confirm('Delete this chat? It will be removed from your list.')) return;
+    try { await TW.api('chat_delete_conversation', { conversation_id: CONV }); location.href = <?= json_encode(page_url('messages')) ?>; }
+    catch (err) { TW.toast(err.message, 'err'); }
+  };
+  window.deleteMsg = async function (btn, id) {
+    if (!confirm('Delete this message?')) return;
+    try { await TW.api('chat_delete_message', { id: id }); const el = btn.closest('.msg'); if (el) el.remove(); }
+    catch (err) { TW.toast(err.message, 'err'); }
+  };
   <?php endif; ?>
 
   // New-chat modal tabs

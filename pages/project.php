@@ -52,9 +52,9 @@ $statusData = [
 
 // Hours logged for this project over the last 7 days.
 $stmt = db()->prepare("SELECT log_date, SUM(minutes) m FROM time_entries
-    WHERE project_id = ? AND log_date >= ? GROUP BY log_date");
+    WHERE project_id = ? AND user_id = ? AND log_date >= ? GROUP BY log_date");
 $from7 = date('Y-m-d', strtotime('-6 days'));
-$stmt->execute([$id, $from7]);
+$stmt->execute([$id, scope_uid(), $from7]);
 $map = [];
 foreach ($stmt->fetchAll() as $r) $map[$r['log_date']] = (int)$r['m'];
 $days7 = [];
