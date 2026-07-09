@@ -165,6 +165,42 @@ try {
             db()->prepare('DELETE FROM attendance WHERE id = ? AND user_id = ?')->execute([$id, current_user_id()]);
             json_response(['ok' => true]);
 
+        /* ---- Chat / messaging ------------------------------------ */
+        case 'chat_start_direct':
+            $other = (int)($in['user_id'] ?? 0);
+            if (!$other || !get_user($other)) json_response(['ok' => false, 'error' => 'User not found.'], 400);
+            $cid = chat_get_or_create_direct(current_user_id(), $other);
+            if (!$cid) json_response(['ok' => false, 'error' => 'Cannot message yourself.'], 400);
+            json_response(['ok' => true, 'conversation_id' => $cid]);
+
+        case 'chat_create_group':
+            $name = trim((string)($in['name'] ?? ''));
+            $members = $in['members'] ?? [];
+            if (!is_array($members) || count($members) < 1) json_response(['ok' => false, 'error' => 'Pick at least one member.'], 400);
+            $cid = chat_create_group($name, $members, current_user_id());
+            json_response(['ok' => true, 'conversation_id' => $cid]);
+
+        case 'chat_send':
+            $cid = (int)($in['conversation_id'] ?? 0);
+            $r = chat_send($cid, current_user_id(), (string)($in['body'] ?? ''));
+            if (isset($r['error'])) json_response(['ok' => false, 'error' => $r['error']], 400);
+            json_response(['ok' => true] + $r);
+
+        case 'chat_poll':
+            $cid = (int)($in['conversation_id'] ?? 0);
+            $after = (int)($in['after'] ?? 0);
+            if (!chat_is_member($cid, current_user_id())) json_response(['ok' => false, 'error' => 'Not allowed.'], 403);
+            $msgs = chat_messages($cid, current_user_id(), $after);
+            chat_mark_read($cid, current_user_id());
+            json_response(['ok' => true, 'messages' => $msgs, 'me' => current_user_id()]);
+
+        case 'chat_mark_read':
+            chat_mark_read((int)($in['conversation_id'] ?? 0), current_user_id());
+            json_response(['ok' => true]);
+
+        case 'chat_unread':
+            json_response(['ok' => true, 'unread' => chat_total_unread(current_user_id())]);
+
         /* ---- Super admin: user management ------------------------ */
         case 'admin_create_user':
             if (!is_super_admin()) json_response(['ok' => false, 'error' => 'Admins only.'], 403);

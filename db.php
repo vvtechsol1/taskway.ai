@@ -111,6 +111,39 @@ function db_migrate(PDO $pdo): void
     SQL);
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_attendance_user ON attendance(user_id, log_date);');
 
+    // Chat: conversations (direct / group), members, and messages.
+    $pdo->exec(<<<SQL
+        CREATE TABLE IF NOT EXISTS conversations (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            type       TEXT NOT NULL DEFAULT 'direct',   -- direct | group
+            name       TEXT DEFAULT '',
+            created_by INTEGER,
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+    SQL);
+    $pdo->exec(<<<SQL
+        CREATE TABLE IF NOT EXISTS conversation_members (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id INTEGER,
+            user_id         INTEGER,
+            last_read_id    INTEGER DEFAULT 0,
+            joined_at       TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+    SQL);
+    $pdo->exec(<<<SQL
+        CREATE TABLE IF NOT EXISTS messages (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id INTEGER,
+            user_id         INTEGER,
+            body            TEXT NOT NULL,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+    SQL);
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_msg_conv ON messages(conversation_id, id);');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_cm_user ON conversation_members(user_id);');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_cm_conv ON conversation_members(conversation_id);');
+
     // Seed default settings once.
     $defaults = [
         'auth_enabled'    => '0',
