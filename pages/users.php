@@ -124,17 +124,17 @@ async function saveUser(e) {
   try {
     await TW.api(id ? 'admin_update_user' : 'admin_create_user', payload);
     TW.toast(id ? 'User updated' : 'User added');
-    setTimeout(() => location.reload(), 500);
+    setTimeout(() => TW.reload(), 500);
   } catch (err) { TW.toast(err.message, 'err'); }
   return false;
 }
 async function deleteUser(id, name) {
   if (!confirm('Delete user "' + name + '" and ALL their data? This cannot be undone.')) return;
-  try { await TW.api('admin_delete_user', { id }); TW.toast('User deleted'); setTimeout(() => location.reload(), 400); }
+  try { await TW.api('admin_delete_user', { id }); TW.toast('User deleted'); setTimeout(() => TW.reload(), 400); }
   catch (err) { TW.toast(err.message, 'err'); }
 }
 async function viewUser(id) {
-  try { await TW.api('admin_view_user', { id }); location.href = '<?= page_url('dashboard') ?>'; }
+  try { await TW.api('admin_view_user', { id }); TW.navigate('<?= page_url('dashboard') ?>'); }
   catch (err) { TW.toast(err.message, 'err'); }
 }
 </script>

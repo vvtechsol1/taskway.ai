@@ -242,7 +242,7 @@ require __DIR__ . '/../partials/header.php';
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', drawAnalytics);
+if (document.readyState !== 'loading') drawAnalytics(); else document.addEventListener('DOMContentLoaded', drawAnalytics);
 document.addEventListener('tw:theme', drawAnalytics);
 function drawAnalytics() {
 <?php if ($periodMin > 0): ?>

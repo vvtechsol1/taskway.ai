@@ -149,7 +149,7 @@ require __DIR__ . '/../partials/header.php';
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', drawDash);
+if (document.readyState !== 'loading') drawDash(); else document.addEventListener('DOMContentLoaded', drawDash);
 document.addEventListener('tw:theme', drawDash);
 function drawDash() {
   TWChart.bars('weekChart', <?= json_encode(array_map(fn($d) => ['label' => substr($d['label'],0,2), 'value' => $d['minutes'], 'today' => $d['date'] === date('Y-m-d')], array_slice($byDay, -7))) ?>, { goal: <?= $goalMin ?>, height: 150 });

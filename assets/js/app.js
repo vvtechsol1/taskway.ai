@@ -28,6 +28,70 @@
   };
   window.TW = TW;
 
+  /* ---------- PJAX: swap the content area without a full page reload ---------- */
+  const pageIntervals = [];
+  TW.setPageInterval = function (fn, ms) { const id = setInterval(fn, ms); pageIntervals.push(id); return id; };
+
+  function runScripts(container) {
+    container.querySelectorAll('script').forEach((old) => {
+      const s = document.createElement('script');
+      for (const a of old.attributes) s.setAttribute(a.name, a.value);
+      s.textContent = old.textContent;
+      old.replaceWith(s);
+    });
+  }
+  function setActiveNav(url) {
+    const m = url.match(/[?&]page=([a-z_]+)/);
+    const page = m ? m[1] : 'dashboard';
+    document.querySelectorAll('.nav-item').forEach((a) => {
+      const p = (a.getAttribute('href') || '').match(/[?&]page=([a-z_]+)/);
+      a.classList.toggle('active', !!p && p[1] === page);
+    });
+  }
+  let pjaxBusy = false;
+  async function pjaxLoad(url, push) {
+    const main = document.querySelector('main.content');
+    if (!main || pjaxBusy) { location.href = url; return; }
+    pjaxBusy = true;
+    document.body.classList.add('pjax-busy');
+    try {
+      const res = await fetch(url, { headers: { 'X-Requested-With': 'pjax' }, credentials: 'same-origin' });
+      const finalUrl = res.url || url;
+      if (!res.ok || /[?&]page=login/.test(finalUrl)) { location.href = url; return; }
+      const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+      const nm = doc.querySelector('main.content');
+      if (!nm) { location.href = url; return; }
+      while (pageIntervals.length) clearInterval(pageIntervals.pop());
+      main.innerHTML = nm.innerHTML;
+      runScripts(main);
+      const tbT = document.getElementById('tbTitle'), nT = doc.getElementById('tbTitle');
+      if (tbT && nT) tbT.innerHTML = nT.innerHTML;
+      const tbA = document.getElementById('tbActions'), nA = doc.getElementById('tbActions');
+      if (tbA) tbA.innerHTML = nA ? nA.innerHTML : '';
+      document.title = doc.title;
+      setActiveNav(finalUrl);
+      if (push !== false) history.pushState({ pjax: 1 }, '', finalUrl);
+      window.scrollTo(0, 0);
+      const sb = document.getElementById('sidebar'); if (sb) sb.classList.remove('open');
+      document.querySelectorAll('.modal-back.open').forEach((m) => m.classList.remove('open'));
+      document.dispatchEvent(new CustomEvent('tw:loaded'));
+    } catch (e) { location.href = url; }
+    finally { pjaxBusy = false; document.body.classList.remove('pjax-busy'); }
+  }
+  TW.navigate = (url) => pjaxLoad(url, true);
+  TW.reload = () => pjaxLoad(location.href, false);
+
+  document.addEventListener('click', (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target.closest('a[href]');
+    if (!a || a.target === '_blank' || a.hasAttribute('download') || a.hasAttribute('data-open-modal') || a.hasAttribute('data-no-pjax')) return;
+    let u; try { u = new URL(a.getAttribute('href'), location.href); } catch (err) { return; }
+    if (u.origin !== location.origin || !/[?&]page=/.test(u.search) || /[?&]page=(logout|login)\b/.test(u.search)) return;
+    e.preventDefault();
+    pjaxLoad(u.href, true);
+  });
+  window.addEventListener('popstate', () => pjaxLoad(location.href, false));
+
   /* ---------- Theme ---------- */
   const root = document.documentElement;
   const saved = localStorage.getItem('tw-theme');
@@ -103,11 +167,11 @@
         if (timerBtn.classList.contains('running')) {
           const r = await TW.api('timer_stop', {});
           TW.toast('Tracked ' + TWChart.fmtMin(r.minutes || 0));
-          setTimeout(() => location.reload(), 700);
+          setTimeout(() => TW.reload(), 400);
         } else {
           await TW.api('timer_start', { task_id: id });
           TW.toast('Timer started ⏱️', 'info');
-          setTimeout(() => location.reload(), 500);
+          setTimeout(() => TW.reload(), 300);
         }
       } catch (err) { TW.toast(err.message, 'err'); }
     }
@@ -188,51 +252,52 @@
   }
   window.TWApplyStats = applyStats;
 
-  /* ---------- Quick-add inline form (present on some pages) ---------- */
-  const qa = document.getElementById('quickAddForm');
-  if (qa) {
-    qa.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const fd = new FormData(qa);
-      const payload = Object.fromEntries(fd.entries());
-      if (!payload.title || !payload.title.trim()) return;
-      try {
-        await TW.api('create_task', payload);
-        TW.toast('Task added');
-        setTimeout(() => location.reload(), 400);
-      } catch (err) { TW.toast(err.message, 'err'); }
-    });
-  }
-
-  /* ---------- Live elapsed timers (attendance, etc.) ---------- */
-  const elapsers = document.querySelectorAll('.live-elapsed[data-elapsed]');
-  if (elapsers.length) {
-    const pad = (n) => (n < 10 ? '0' : '') + n;
-    elapsers.forEach((el) => { el._start = Date.now() - (parseInt(el.dataset.elapsed, 10) || 0) * 1000; });
-    const tickElapsed = () => {
-      elapsers.forEach((el) => {
-        let s = Math.max(0, Math.floor((Date.now() - el._start) / 1000));
-        const h = Math.floor(s / 3600); s %= 3600;
-        el.textContent = pad(h) + ':' + pad(Math.floor(s / 60)) + ':' + pad(s % 60);
+  /* ---------- Per-page widgets (re-wired after each PJAX load) ---------- */
+  function initPage() {
+    const qa = document.getElementById('quickAddForm');
+    if (qa && !qa.__wired) {
+      qa.__wired = true;
+      qa.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = Object.fromEntries(new FormData(qa).entries());
+        if (!payload.title || !payload.title.trim()) return;
+        try { await TW.api('create_task', payload); TW.toast('Task added'); TW.reload(); }
+        catch (err) { TW.toast(err.message, 'err'); }
       });
-    };
-    tickElapsed();
-    setInterval(tickElapsed, 1000);
+    }
   }
+  document.addEventListener('tw:loaded', initPage);
+  if (document.readyState !== 'loading') initPage(); else document.addEventListener('DOMContentLoaded', initPage);
+
+  /* ---------- Global 1s ticker: live-elapsed (attendance) + task timer ---------- */
+  const pad2 = (n) => (n < 10 ? '0' : '') + n;
+  setInterval(() => {
+    document.querySelectorAll('.live-elapsed[data-elapsed]').forEach((el) => {
+      if (el._start == null) el._start = Date.now() - (parseInt(el.dataset.elapsed, 10) || 0) * 1000;
+      let s = Math.max(0, Math.floor((Date.now() - el._start) / 1000));
+      const h = Math.floor(s / 3600); s %= 3600;
+      el.textContent = pad2(h) + ':' + pad2(Math.floor(s / 60)) + ':' + pad2(s % 60);
+    });
+    const t = document.getElementById('timerTicker');
+    if (t && t.dataset.started) {
+      const s = Math.max(0, Math.floor((Date.now() - new Date(t.dataset.started.replace(' ', 'T')).getTime()) / 1000));
+      t.textContent = pad2(Math.floor(s / 60)) + ':' + pad2(s % 60);
+    }
+  }, 1000);
 
   /* ---------- Global unread-message poller (bell + sidebar badge) ---------- */
   (function () {
     const bell = document.getElementById('notifBadge');
     const navB = document.getElementById('navMsgBadge');
     if (!bell && !navB) return;
-    const baseTitle = document.title.replace(/^\(\d+\)\s*/, '');
     let last = -1;
     async function checkUnread() {
       try {
         const r = await TW.api('chat_unread', {});
         const n = r.unread || 0;
         [bell, navB].forEach((b) => { if (!b) return; if (n > 0) { b.textContent = n; b.style.display = ''; } else b.style.display = 'none'; });
-        document.title = (n > 0 ? '(' + n + ') ' : '') + baseTitle;
+        const base = document.title.replace(/^\(\d+\)\s*/, '');
+        document.title = (n > 0 ? '(' + n + ') ' : '') + base;
         if (last >= 0 && n > last) TW.toast('📩 New message', 'info');
         last = n;
       } catch (e) {}
@@ -240,15 +305,4 @@
     checkUnread();
     setInterval(checkUnread, 12000);
   })();
-
-  /* ---------- Live timer ticker in topbar ---------- */
-  const ticker = document.getElementById('timerTicker');
-  if (ticker && ticker.dataset.started) {
-    const started = new Date(ticker.dataset.started.replace(' ', 'T')).getTime();
-    setInterval(() => {
-      const s = Math.max(0, Math.floor((Date.now() - started) / 1000));
-      const m = Math.floor(s / 60), sec = s % 60;
-      ticker.textContent = (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
-    }, 1000);
-  }
 })();

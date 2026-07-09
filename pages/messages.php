@@ -256,12 +256,12 @@ require __DIR__ . '/../partials/header.php';
       if (r.messages && r.messages.length) { const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80; r.messages.forEach((m) => render(m)); if (atBottom) box.scrollTop = box.scrollHeight; }
     } catch (e) {}
   }
-  setInterval(poll, 4000);
+  TW.setPageInterval(poll, 4000);
   input.focus();
 
   window.deleteChat = async function () {
     if (!confirm('Delete this chat? It will be removed from your list.')) return;
-    try { await TW.api('chat_delete_conversation', { conversation_id: CONV }); location.href = <?= json_encode(page_url('messages')) ?>; }
+    try { await TW.api('chat_delete_conversation', { conversation_id: CONV }); TW.navigate(<?= json_encode(page_url('messages')) ?>); }
     catch (err) { TW.toast(err.message, 'err'); }
   };
   window.deleteMsg = async function (btn, id) {
@@ -280,13 +280,13 @@ require __DIR__ . '/../partials/header.php';
     document.getElementById('tabGroup').classList.toggle('hidden', b.dataset.tab !== 'group');
   });
   window.startDirect = async function (uid) {
-    try { const r = await TW.api('chat_start_direct', { user_id: uid }); location.href = '<?= page_url('messages') ?>&c=' + r.conversation_id; }
+    try { const r = await TW.api('chat_start_direct', { user_id: uid }); TW.navigate('<?= page_url('messages') ?>&c=' + r.conversation_id); }
     catch (err) { TW.toast(err.message, 'err'); }
   };
   window.createGroup = async function () {
     const members = [...document.querySelectorAll('.group-member:checked')].map((c) => parseInt(c.value));
     if (!members.length) { TW.toast('Pick at least one member', 'info'); return; }
-    try { const r = await TW.api('chat_create_group', { name: document.getElementById('groupName').value, members: members }); location.href = '<?= page_url('messages') ?>&c=' + r.conversation_id; }
+    try { const r = await TW.api('chat_create_group', { name: document.getElementById('groupName').value, members: members }); TW.navigate('<?= page_url('messages') ?>&c=' + r.conversation_id); }
     catch (err) { TW.toast(err.message, 'err'); }
   };
 })();

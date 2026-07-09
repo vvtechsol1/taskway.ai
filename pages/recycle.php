@@ -74,12 +74,12 @@ async function rec(action, id, btn, confirmFirst) {
     await TW.api(action, { id: id });
     TW.toast(action.indexOf('restore') === 0 ? 'Restored ✓' : 'Permanently deleted');
     const row = btn.closest('[data-recycle]');
-    if (row) { row.style.transition = 'all .3s'; row.style.opacity = '0'; setTimeout(() => { row.remove(); if (!document.querySelector('[data-recycle]')) location.reload(); }, 300); }
+    if (row) { row.style.transition = 'all .3s'; row.style.opacity = '0'; setTimeout(() => { row.remove(); if (!document.querySelector('[data-recycle]')) TW.reload(); }, 300); }
   } catch (err) { TW.toast(err.message, 'err'); }
 }
 async function emptyRecycle() {
   if (!confirm('Permanently delete EVERYTHING in the recycle bin? This cannot be undone.')) return;
-  try { await TW.api('empty_recycle', {}); TW.toast('Recycle bin emptied'); setTimeout(() => location.reload(), 400); }
+  try { await TW.api('empty_recycle', {}); TW.toast('Recycle bin emptied'); setTimeout(() => TW.reload(), 400); }
   catch (err) { TW.toast(err.message, 'err'); }
 }
 </script>

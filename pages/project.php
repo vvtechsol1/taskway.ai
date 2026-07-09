@@ -216,7 +216,7 @@ require __DIR__ . '/../partials/header.php';
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', drawProject);
+if (document.readyState !== 'loading') drawProject(); else document.addEventListener('DOMContentLoaded', drawProject);
 document.addEventListener('tw:theme', drawProject);
 function drawProject() {
   TWChart.bars('projWeekChart', <?= json_encode(array_map(fn($d) => ['label' => substr($d['label'], 0, 2), 'value' => $d['minutes'], 'today' => $d['date'] === date('Y-m-d')], $days7)) ?>, { height: 150, color: <?= json_encode($color) ?> });

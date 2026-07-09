@@ -96,12 +96,12 @@ $nav = [
   <div class="main">
     <header class="topbar">
       <button class="icon-btn menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
-      <div>
+      <div id="tbTitle">
         <h1><?= esc($PAGE_TITLE) ?></h1>
         <?php if ($PAGE_SUB): ?><div class="sub"><?= esc($PAGE_SUB) ?></div><?php endif; ?>
       </div>
       <div class="topbar-right">
-        <?= $TOPBAR_ACTIONS ?? '' ?>
+        <span id="tbActions"><?= $TOPBAR_ACTIONS ?? '' ?></span>
         <?php if ($att): ?>
           <button class="btn" style="background:var(--danger-soft);color:var(--coral);font-weight:700" data-attendance="checkout" title="Check out">
             <span class="live-dot"></span> <span class="live-elapsed" data-elapsed="<?= max(0, time() - strtotime($att['check_in'])) ?>">00:00:00</span> · Check out

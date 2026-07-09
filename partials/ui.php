@@ -198,7 +198,7 @@ function render_project_editor(): void
         try {
           await TW.api(id ? 'update_project' : 'create_project', payload);
           TW.toast(id ? 'Project updated ✓' : 'Project created 🎉');
-          setTimeout(function () { location.reload(); }, 450);
+          setTimeout(function () { TW.reload(); }, 450);
         } catch (err) { TW.toast(err.message, 'err'); btn.disabled = false; }
       };
 
@@ -207,7 +207,7 @@ function render_project_editor(): void
         try {
           await TW.api('delete_project', { id: id });
           TW.toast('Project deleted');
-          setTimeout(function () { location.href = <?= json_encode(page_url('projects')) ?>; }, 450);
+          setTimeout(function () { TW.navigate(<?= json_encode(page_url('projects')) ?>); }, 450);
         } catch (err) { TW.toast(err.message, 'err'); }
       };
 
@@ -304,13 +304,13 @@ function render_task_editor(): void
             description: document.getElementById('teDesc').value.trim()
           });
           TW.toast('Task updated ✓');
-          setTimeout(function () { location.reload(); }, 450);
+          setTimeout(function () { TW.reload(); }, 450);
         } catch (err) { TW.toast(err.message, 'err'); btn.disabled = false; }
       };
       window.taskEditorDelete = async function () {
         var id = document.getElementById('teId').value;
         if (!confirm('Delete this task?')) return;
-        try { await TW.api('delete_task', { id: parseInt(id) }); TW.toast('Task deleted'); setTimeout(function () { location.reload(); }, 400); }
+        try { await TW.api('delete_task', { id: parseInt(id) }); TW.toast('Task deleted'); setTimeout(function () { TW.reload(); }, 400); }
         catch (err) { TW.toast(err.message, 'err'); }
       };
     })();
