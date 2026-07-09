@@ -240,9 +240,8 @@ function current_attendance(): ?array
 function attendance_check_in(): array
 {
     if (current_attendance()) return ['error' => 'You are already checked in.'];
-    $stmt = db()->prepare("INSERT INTO attendance(user_id, check_in, log_date)
-        VALUES(?, datetime('now','localtime'), date('now','localtime'))");
-    $stmt->execute([current_user_id()]);
+    $stmt = db()->prepare("INSERT INTO attendance(user_id, check_in, log_date) VALUES(?, ?, ?)");
+    $stmt->execute([current_user_id(), date('Y-m-d H:i:s'), date('Y-m-d')]);
     log_activity('attendance', 'Checked in', []);
     return ['id' => (int)db()->lastInsertId(), 'attendance' => current_attendance()];
 }
@@ -252,8 +251,8 @@ function attendance_check_out(): array
     $a = current_attendance();
     if (!$a) return ['error' => 'You are not checked in.'];
     $minutes = max(0, (int)round((time() - strtotime($a['check_in'])) / 60));
-    $stmt = db()->prepare("UPDATE attendance SET check_out = datetime('now','localtime'), minutes = ? WHERE id = ?");
-    $stmt->execute([$minutes, $a['id']]);
+    $stmt = db()->prepare("UPDATE attendance SET check_out = ?, minutes = ? WHERE id = ?");
+    $stmt->execute([date('Y-m-d H:i:s'), $minutes, $a['id']]);
     log_activity('attendance', 'Checked out · ' . fmt_min($minutes), ['minutes' => $minutes]);
     return ['minutes' => $minutes];
 }

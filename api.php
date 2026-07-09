@@ -92,8 +92,8 @@ try {
             db()->exec("DELETE FROM time_entries WHERE started_at IS NOT NULL AND minutes = 0");
             $task = get_task($id);
             $stmt = db()->prepare("INSERT INTO time_entries(task_id, project_id, minutes, started_at, log_date)
-                VALUES(?, ?, 0, datetime('now','localtime'), date('now','localtime'))");
-            $stmt->execute([$id, $task['project_id'] ?? null]);
+                VALUES(?, ?, 0, ?, ?)");
+            $stmt->execute([$id, $task['project_id'] ?? null, date('Y-m-d H:i:s'), date('Y-m-d')]);
             update_task($id, ['status' => 'in_progress']);
             json_response(['ok' => true, 'timer' => running_timer()]);
 

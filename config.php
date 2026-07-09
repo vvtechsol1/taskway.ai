@@ -13,6 +13,9 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 date_default_timezone_set('Asia/Karachi');
+// Align the C library timezone too, so SQLite's datetime('now','localtime') matches PHP
+// on servers whose OS clock is UTC (e.g. shared hosting).
+putenv('TZ=Asia/Karachi');
 
 define('APP_NAME', 'Taskway');
 define('APP_TAGLINE', 'Your AI-moderated work OS');
