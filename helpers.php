@@ -229,12 +229,26 @@ function admin_user_rows(): array
 /* Attendance (check-in / check-out)                                   */
 /* ------------------------------------------------------------------ */
 
-/** The user's currently-open (checked-in, not yet checked-out) session, if any. */
+/** Sessions auto-close after this many minutes (10 hours) if the user forgot to check out. */
+const ATTENDANCE_MAX_MIN = 600;
+
+/** The user's currently-open session, if any. Auto-checks-out sessions older than 10h. */
 function current_attendance(): ?array
 {
     $stmt = db()->prepare('SELECT * FROM attendance WHERE user_id = ? AND check_out IS NULL ORDER BY id DESC LIMIT 1');
     $stmt->execute([current_user_id()]);
-    return $stmt->fetch() ?: null;
+    $a = $stmt->fetch();
+    if (!$a) return null;
+
+    // Forgot to check out? Auto-close it at check-in + 10 hours.
+    if (time() - strtotime($a['check_in']) >= ATTENDANCE_MAX_MIN * 60) {
+        $closeAt = date('Y-m-d H:i:s', strtotime($a['check_in']) + ATTENDANCE_MAX_MIN * 60);
+        db()->prepare('UPDATE attendance SET check_out = ?, minutes = ? WHERE id = ?')
+            ->execute([$closeAt, ATTENDANCE_MAX_MIN, $a['id']]);
+        log_activity('attendance', 'Auto checked out after 10h', ['minutes' => ATTENDANCE_MAX_MIN, 'auto' => 1]);
+        return null;
+    }
+    return $a;
 }
 
 function attendance_check_in(): array
@@ -250,7 +264,7 @@ function attendance_check_out(): array
 {
     $a = current_attendance();
     if (!$a) return ['error' => 'You are not checked in.'];
-    $minutes = max(0, (int)round((time() - strtotime($a['check_in'])) / 60));
+    $minutes = min(ATTENDANCE_MAX_MIN, max(0, (int)round((time() - strtotime($a['check_in'])) / 60)));
     $stmt = db()->prepare("UPDATE attendance SET check_out = ?, minutes = ? WHERE id = ?");
     $stmt->execute([date('Y-m-d H:i:s'), $minutes, $a['id']]);
     log_activity('attendance', 'Checked out · ' . fmt_min($minutes), ['minutes' => $minutes]);
