@@ -204,6 +204,17 @@ function db_migrate_users(PDO $pdo): void
         }
     }
 
+    // Public portfolio settings on users.
+    $ucols = $pdo->query('PRAGMA table_info(users)')->fetchAll(PDO::FETCH_COLUMN, 1);
+    foreach (['portfolio_token' => 'TEXT', 'portfolio_enabled' => "INTEGER DEFAULT 1",
+              'portfolio_headline' => 'TEXT', 'portfolio_bio' => 'TEXT'] as $col => $type) {
+        if (!in_array($col, $ucols, true)) $pdo->exec("ALTER TABLE users ADD COLUMN $col $type");
+    }
+    // Give every user an unguessable share token.
+    foreach ($pdo->query("SELECT id FROM users WHERE portfolio_token IS NULL OR portfolio_token = ''")->fetchAll(PDO::FETCH_COLUMN) as $uid) {
+        $pdo->prepare('UPDATE users SET portfolio_token = ? WHERE id = ?')->execute([bin2hex(random_bytes(8)), $uid]);
+    }
+
     // Soft-delete (recycle bin) column for tasks & projects.
     foreach (['tasks', 'projects'] as $t) {
         $cols = $pdo->query("PRAGMA table_info($t)")->fetchAll(PDO::FETCH_COLUMN, 1);
@@ -216,6 +227,10 @@ function db_migrate_users(PDO $pdo): void
     $pcols = $pdo->query("PRAGMA table_info(projects)")->fetchAll(PDO::FETCH_COLUMN, 1);
     foreach (['git_url', 'website_url', 'pdf_path'] as $col) {
         if (!in_array($col, $pcols, true)) $pdo->exec("ALTER TABLE projects ADD COLUMN $col TEXT DEFAULT NULL");
+    }
+    // Portfolio visibility per project (1 = shown on the public portfolio).
+    if (!in_array('in_portfolio', $pcols, true)) {
+        $pdo->exec("ALTER TABLE projects ADD COLUMN in_portfolio INTEGER DEFAULT 1");
     }
 
     // First run: create a super admin and hand it all pre-existing data.

@@ -29,6 +29,7 @@ $nav = [
     ['projects',  '📁', 'Projects',  $navActiveProjects ?: null],
     ['analytics', '📈', 'Analytics', null],
     ['attendance','🕐', 'Attendance', null],
+    ['portfolio', '💼', 'Portfolio', null],
     ['messages',  '💬', 'Messages',  $unread ?: null],
 ];
 ?>

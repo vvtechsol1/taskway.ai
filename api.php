@@ -187,6 +187,29 @@ try {
         case 'attendance_status':
             json_response(['ok' => true, 'attendance' => current_attendance()]);
 
+        /* ---- Portfolio ------------------------------------------- */
+        case 'portfolio_save':
+            db()->prepare('UPDATE users SET portfolio_enabled = ?, portfolio_headline = ?, portfolio_bio = ? WHERE id = ?')
+                ->execute([
+                    !empty($in['enabled']) ? 1 : 0,
+                    mb_substr(trim((string)($in['headline'] ?? '')), 0, 90),
+                    mb_substr(trim((string)($in['bio'] ?? '')), 0, 400),
+                    current_user_id(),
+                ]);
+            json_response(['ok' => true]);
+
+        case 'portfolio_project':
+            $id = (int)($in['id'] ?? 0);
+            if (!$id || !get_project($id)) json_response(['ok' => false, 'error' => 'Not found.'], 404);
+            db()->prepare('UPDATE projects SET in_portfolio = ? WHERE id = ? AND user_id = ?')
+                ->execute([!empty($in['show']) ? 1 : 0, $id, scope_uid()]);
+            json_response(['ok' => true]);
+
+        case 'portfolio_regen':
+            $tok = bin2hex(random_bytes(8));
+            db()->prepare('UPDATE users SET portfolio_token = ? WHERE id = ?')->execute([$tok, current_user_id()]);
+            json_response(['ok' => true, 'token' => $tok]);
+
         case 'attendance_delete':
             $id = (int)($in['id'] ?? 0);
             if (!$id) json_response(['ok' => false, 'error' => 'Bad id.'], 400);
