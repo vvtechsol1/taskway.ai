@@ -42,7 +42,9 @@ function json_response($data, int $code = 200): void
 
 function input_json(): array
 {
-    $raw = file_get_contents('php://input');
+    $raw = (string)file_get_contents('php://input');
+    // Strip a UTF-8 BOM if a client sent one — json_decode chokes on it.
+    if (str_starts_with($raw, "\xEF\xBB\xBF")) $raw = substr($raw, 3);
     $data = json_decode($raw ?: '[]', true);
     return is_array($data) ? $data : [];
 }
