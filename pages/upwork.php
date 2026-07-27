@@ -33,10 +33,22 @@ require __DIR__ . '/../partials/header.php';
           <input class="input" id="upNotes" placeholder="e.g. 2 hafte mein chahiye, ya main Directus pehli dafa use karunga">
         </div>
       </div>
-      <div class="row between mt-4">
+      <div class="row between mt-4 wrap" style="gap:10px">
         <span class="small muted">Proposal aap ke portfolio projects check kar ke banega</span>
-        <button class="btn btn-primary btn-lg" id="upGo">✨ Generate proposal</button>
+        <div class="row" style="gap:10px">
+          <button class="btn btn-soft btn-lg" id="upQueue" title="Claude khud likhega (thodi der mein ready hoga)">🤖 Send to Claude</button>
+          <button class="btn btn-primary btn-lg" id="upGo">✨ Generate now</button>
+        </div>
       </div>
+    </div>
+
+    <!-- Claude queue -->
+    <div class="card card-pad animate d1">
+      <div class="card-head"><h3>🤖 Claude queue</h3>
+        <span class="badge" id="uqCount"></span>
+        <div class="card-action"><span class="small muted">Claude in par khud kaam karta hai — ready hone par yahin khul jayega</span></div>
+      </div>
+      <div id="uqList" class="small muted">Loading…</div>
     </div>
 
     <!-- Result -->
@@ -98,49 +110,110 @@ require __DIR__ . '/../partials/header.php';
   var btn = document.getElementById('upGo');
   if (!btn || btn.__wired) return; btn.__wired = true;
 
+  function esc(s) { return String(s || '').replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  function renderResult(r) {
+    document.getElementById('upLetter').textContent = r.cover_letter || '';
+    var b = r.billing || {};
+    var modeLbl = { fixed: 'Fixed price', milestones: 'Milestones', hourly: 'Hourly' };
+    document.getElementById('upMode').textContent = modeLbl[b.mode] || (b.mode || '');
+    document.getElementById('upReason').textContent = b.reason || '';
+    var ms = b.milestones || [];
+    var wrap = document.getElementById('upMilestonesWrap');
+    if (ms.length) {
+      wrap.classList.remove('hidden');
+      var tb = document.getElementById('upMilestones'); tb.innerHTML = '';
+      var total = 0;
+      ms.forEach(function (m, i) {
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td>' + (i + 1) + '</td><td class="strong">' + esc(m.name) + '</td><td>' + esc(m.date || '') + '</td><td style="text-align:right" class="strong">' + esc(m.price || '') + '</td>';
+        tb.appendChild(tr);
+        total += parseFloat(String(m.price || '').replace(/[^0-9.]/g, '')) || 0;
+      });
+      document.getElementById('upTotal').textContent = total > 0 ? ('Total: $' + total.toLocaleString()) : '';
+    } else wrap.classList.add('hidden');
+    var q = document.getElementById('upQuestions'); q.innerHTML = '';
+    (r.questions || []).forEach(function (x) {
+      var d = document.createElement('div');
+      d.className = 'small'; d.style.cssText = 'background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 13px';
+      d.textContent = x; q.appendChild(d);
+    });
+    document.getElementById('upResult').classList.remove('hidden');
+    document.getElementById('upResult').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function fields() {
+    return {
+      job: document.getElementById('upJob').value.trim(),
+      budget: document.getElementById('upBudget').value.trim(),
+      notes: document.getElementById('upNotes').value.trim()
+    };
+  }
+
   btn.addEventListener('click', async function () {
-    var job = document.getElementById('upJob').value.trim();
-    if (job.length < 40) { TW.toast('Pehle job post paste karein', 'info'); return; }
-    btn.disabled = true; btn.textContent = '✨ Likh raha hoon… (30-60s)';
+    var f = fields();
+    if (f.job.length < 40) { TW.toast('Pehle job post paste karein', 'info'); return; }
+    btn.disabled = true; btn.textContent = '✨ Likh raha hoon…';
     try {
-      var r = await TW.api('upwork_proposal', {
-        job: job,
-        budget: document.getElementById('upBudget').value.trim(),
-        notes: document.getElementById('upNotes').value.trim()
-      });
-      document.getElementById('upLetter').textContent = r.cover_letter || '';
-      var b = r.billing || {};
-      var modeLbl = { fixed: 'Fixed price', milestones: 'Milestones', hourly: 'Hourly' };
-      document.getElementById('upMode').textContent = modeLbl[b.mode] || (b.mode || '');
-      document.getElementById('upReason').textContent = b.reason || '';
-      var ms = b.milestones || [];
-      var wrap = document.getElementById('upMilestonesWrap');
-      if (ms.length) {
-        wrap.classList.remove('hidden');
-        var tb = document.getElementById('upMilestones'); tb.innerHTML = '';
-        var total = 0;
-        ms.forEach(function (m, i) {
-          var tr = document.createElement('tr');
-          tr.innerHTML = '<td>' + (i + 1) + '</td><td class="strong">' + esc(m.name) + '</td><td>' + esc(m.date || '') + '</td><td style="text-align:right" class="strong">' + esc(m.price || '') + '</td>';
-          tb.appendChild(tr);
-          total += parseFloat(String(m.price || '').replace(/[^0-9.]/g, '')) || 0;
-        });
-        document.getElementById('upTotal').textContent = total > 0 ? ('Total: $' + total.toLocaleString()) : '';
-      } else wrap.classList.add('hidden');
-      var q = document.getElementById('upQuestions'); q.innerHTML = '';
-      (r.questions || []).forEach(function (x) {
-        var d = document.createElement('div');
-        d.className = 'small'; d.style.cssText = 'background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 13px';
-        d.textContent = x; q.appendChild(d);
-      });
-      document.getElementById('upResult').classList.remove('hidden');
+      var r = await TW.api('upwork_proposal', f);
+      renderResult(r);
       TW.toast('Proposal ready (' + (r.engine === 'claude' ? 'Claude AI' : 'offline engine') + ') ✓');
-      document.getElementById('upResult').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (e) { TW.toast(e.message, 'err'); }
-    finally { btn.disabled = false; btn.textContent = '✨ Generate proposal'; }
+    finally { btn.disabled = false; btn.textContent = '✨ Generate now'; }
   });
 
-  function esc(s) { return String(s || '').replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  // ---- Claude queue ----
+  var qbtn = document.getElementById('upQueue');
+  qbtn.addEventListener('click', async function () {
+    var f = fields();
+    if (f.job.length < 40) { TW.toast('Pehle job post paste karein', 'info'); return; }
+    qbtn.disabled = true;
+    try {
+      await TW.api('upwork_queue', f);
+      TW.toast('Claude ko bhej diya 🤖 — ready hone par yahin milega');
+      document.getElementById('upJob').value = '';
+      loadQueue();
+    } catch (e) { TW.toast(e.message, 'err'); }
+    finally { qbtn.disabled = false; }
+  });
+
+  var stBadge = { pending: '<span class="badge"><span class="dot"></span>Waiting</span>',
+                  processing: '<span class="badge in_progress"><span class="dot"></span>Claude likh raha hai…</span>',
+                  done: '<span class="badge done">✓ Ready</span>',
+                  failed: '<span class="badge blocked">Failed</span>' };
+  async function loadQueue() {
+    try {
+      var r = await TW.api('upwork_queue_list', {});
+      var box = document.getElementById('uqList');
+      document.getElementById('uqCount').textContent = r.items.length;
+      if (!r.items.length) { box.innerHTML = '<span class="muted">Abhi kuch queue mein nahi — "🤖 Send to Claude" try karein.</span>'; return; }
+      box.innerHTML = '';
+      r.items.forEach(function (it) {
+        var d = document.createElement('div');
+        d.className = 'row between wrap';
+        d.style.cssText = 'gap:10px;padding:11px 4px;border-bottom:1px solid var(--border)';
+        d.innerHTML = '<div class="grow" style="min-width:200px"><div class="strong" style="font-size:13px">' + esc(it.excerpt) + '…</div>' +
+          '<div class="muted" style="font-size:11.5px">' + esc(it.created_at) + (it.budget ? ' · ' + esc(it.budget) : '') + '</div></div>' +
+          '<div class="row" style="gap:8px">' + (stBadge[it.status] || '') +
+          (it.status === 'done' ? ' <button class="btn btn-soft btn-sm" onclick="uqOpen(' + it.id + ')">📄 Open</button>' : '') +
+          ' <button class="icon-btn" style="width:28px;height:28px;font-size:12px" onclick="uqDel(' + it.id + ')">🗑</button></div>';
+        box.appendChild(d);
+      });
+    } catch (e) {}
+  }
+  window.uqOpen = async function (id) {
+    try {
+      var r = await TW.api('upwork_queue_get', { id: id });
+      if (r.item && r.item.result) { renderResult(r.item.result); TW.toast('Claude ka likha proposal 🤖✓'); }
+    } catch (e) { TW.toast(e.message, 'err'); }
+  };
+  window.uqDel = async function (id) {
+    if (!confirm('Remove from queue?')) return;
+    try { await TW.api('upwork_queue_delete', { id: id }); loadQueue(); } catch (e) {}
+  };
+  loadQueue();
+  if (window.TW && TW.setPageInterval) TW.setPageInterval(loadQueue, 20000);
+
   window.upCopy = function (id) {
     var t = document.getElementById(id).textContent;
     (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(

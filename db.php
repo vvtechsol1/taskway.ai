@@ -111,6 +111,21 @@ function db_migrate(PDO $pdo): void
     SQL);
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_attendance_user ON attendance(user_id, log_date);');
 
+    // Upwork proposal queue — jobs waiting for Claude (the bridge) to write them.
+    $pdo->exec(<<<SQL
+        CREATE TABLE IF NOT EXISTS proposal_queue (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER,
+            job        TEXT NOT NULL,
+            budget     TEXT DEFAULT '',
+            notes      TEXT DEFAULT '',
+            status     TEXT NOT NULL DEFAULT 'pending',   -- pending | processing | done | failed
+            result     TEXT DEFAULT NULL,                 -- JSON {cover_letter, relevant_projects, billing, questions}
+            created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            done_at    TEXT DEFAULT NULL
+        );
+    SQL);
+
     // Chat: conversations (direct / group), members, and messages.
     $pdo->exec(<<<SQL
         CREATE TABLE IF NOT EXISTS conversations (
@@ -164,6 +179,7 @@ function db_migrate(PDO $pdo): void
         'accent'          => 'violet',
         'user_name'       => 'there',
         'allow_signup'    => '1',                // let people self-register
+        'bridge_secret'   => bin2hex(random_bytes(16)),   // auth for the Claude bridge (INSERT OR IGNORE keeps the first)
     ];
     $stmt = $pdo->prepare('INSERT OR IGNORE INTO settings(key, value) VALUES(?, ?)');
     foreach ($defaults as $k => $v) {

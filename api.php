@@ -7,10 +7,54 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/parser.php';
 
-require_login();
-
 $action = preg_replace('/[^a-z0-9_]/', '', (string)($_GET['action'] ?? ''));
 $in = input_json();
+
+/* ---- Claude bridge (secret-authenticated, no session) ------------- */
+if (str_starts_with($action, 'bridge_')) {
+    $secret = (string)($in['secret'] ?? '');
+    if ($secret === '' || !hash_equals((string)setting('bridge_secret'), $secret)) {
+        json_response(['ok' => false, 'error' => 'Bad secret.'], 403);
+    }
+    if ($action === 'bridge_pull') {
+        $rows = db()->query("SELECT * FROM proposal_queue WHERE status = 'pending' ORDER BY id LIMIT 5")->fetchAll();
+        $jobs = [];
+        foreach ($rows as $r) {
+            $uid = (int)$r['user_id'];
+            $u = get_user($uid);
+            $ps = db()->prepare("SELECT name, description, technologies, website_url, status FROM projects
+                WHERE user_id = ? AND deleted_at IS NULL AND in_portfolio = 1 ORDER BY position, name");
+            $ps->execute([$uid]);
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $jobs[] = [
+                'id' => (int)$r['id'],
+                'job' => $r['job'], 'budget' => $r['budget'], 'notes' => $r['notes'],
+                'user' => ['name' => $u['name'] ?? '', 'username' => $u['username'] ?? ''],
+                'projects' => $ps->fetchAll(),
+                'portfolio_url' => $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? '') . url('p.php') . '?u=' . ($u['portfolio_token'] ?? ''),
+            ];
+            db()->prepare("UPDATE proposal_queue SET status = 'processing' WHERE id = ?")->execute([$r['id']]);
+        }
+        json_response(['ok' => true, 'jobs' => $jobs]);
+    }
+    if ($action === 'bridge_push') {
+        $id = (int)($in['id'] ?? 0);
+        $result = $in['result'] ?? null;
+        if (!$id || !is_array($result) || empty($result['cover_letter'])) {
+            json_response(['ok' => false, 'error' => 'id + result{cover_letter,...} required.'], 400);
+        }
+        db()->prepare("UPDATE proposal_queue SET status = 'done', result = ?, done_at = ? WHERE id = ?")
+            ->execute([json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), date('Y-m-d H:i:s'), $id]);
+        json_response(['ok' => true]);
+    }
+    if ($action === 'bridge_reset') {   // stuck processing -> pending again
+        db()->exec("UPDATE proposal_queue SET status = 'pending' WHERE status = 'processing'");
+        json_response(['ok' => true]);
+    }
+    json_response(['ok' => false, 'error' => 'Unknown bridge action.'], 404);
+}
+
+require_login();
 
 try {
     switch ($action) {
@@ -252,6 +296,32 @@ try {
             $portfolioUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . url('p.php') . '?u=' . ($me['portfolio_token'] ?? '');
             $result = upwork_generate($job, trim((string)($in['budget'] ?? '')), trim((string)($in['notes'] ?? '')), $me, $projects, $portfolioUrl);
             json_response(['ok' => true] + $result);
+
+        case 'upwork_queue':
+            $job = trim((string)($in['job'] ?? ''));
+            if (mb_strlen($job) < 40) json_response(['ok' => false, 'error' => 'Job post paste karein (thoda detail chahiye).'], 400);
+            db()->prepare('INSERT INTO proposal_queue(user_id, job, budget, notes) VALUES(?, ?, ?, ?)')
+                ->execute([current_user_id(), $job, trim((string)($in['budget'] ?? '')), trim((string)($in['notes'] ?? ''))]);
+            json_response(['ok' => true, 'id' => (int)db()->lastInsertId()]);
+
+        case 'upwork_queue_list':
+            $stmt = db()->prepare("SELECT id, status, budget, substr(job,1,90) excerpt, created_at, done_at
+                FROM proposal_queue WHERE user_id = ? ORDER BY id DESC LIMIT 20");
+            $stmt->execute([current_user_id()]);
+            json_response(['ok' => true, 'items' => $stmt->fetchAll()]);
+
+        case 'upwork_queue_get':
+            $stmt = db()->prepare('SELECT * FROM proposal_queue WHERE id = ? AND user_id = ?');
+            $stmt->execute([(int)($in['id'] ?? 0), current_user_id()]);
+            $row = $stmt->fetch();
+            if (!$row) json_response(['ok' => false, 'error' => 'Not found.'], 404);
+            $row['result'] = $row['result'] ? json_decode($row['result'], true) : null;
+            json_response(['ok' => true, 'item' => $row]);
+
+        case 'upwork_queue_delete':
+            db()->prepare('DELETE FROM proposal_queue WHERE id = ? AND user_id = ?')
+                ->execute([(int)($in['id'] ?? 0), current_user_id()]);
+            json_response(['ok' => true]);
 
         case 'portfolio_regen':
             $tok = bin2hex(random_bytes(8));
