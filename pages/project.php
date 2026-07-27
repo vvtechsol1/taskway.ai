@@ -94,6 +94,13 @@ require __DIR__ . '/../partials/header.php';
         <button class="btn btn-ghost btn-sm" onclick="projectEditorOpen('edit', <?= esc(json_encode($project, JSON_UNESCAPED_UNICODE)) ?>)">✏️ Edit</button>
         <button class="btn btn-danger btn-sm" onclick="projectDelete(<?= (int)$id ?>, <?= esc(json_encode($project['name'], JSON_UNESCAPED_UNICODE)) ?>)">🗑️ Delete</button>
       </div>
+      <?php if (!empty($project['website_url']) || !empty($project['git_url']) || !empty($project['pdf_path'])): ?>
+        <div class="row wrap mt-4" style="gap:8px">
+          <?php if (!empty($project['website_url'])): ?><a href="<?= esc($project['website_url']) ?>" target="_blank" rel="noopener" data-no-pjax class="chip">🌐 Website</a><?php endif; ?>
+          <?php if (!empty($project['git_url'])): ?><a href="<?= esc($project['git_url']) ?>" target="_blank" rel="noopener" data-no-pjax class="chip">🔗 Git repo</a><?php endif; ?>
+          <?php if (!empty($project['pdf_path'])): ?><a href="<?= esc(url($project['pdf_path'])) ?>" target="_blank" rel="noopener" data-no-pjax class="chip">📄 PDF</a><?php endif; ?>
+        </div>
+      <?php endif; ?>
     </div>
     <!-- Progress ring -->
     <div style="text-align:center;flex:0 0 auto">

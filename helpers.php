@@ -359,15 +359,32 @@ function find_or_create_project(string $name, array $extra = []): int
     $base = $slug; $i = 2;
     while ($slugExists($slug)) { $slug = $base . '-' . $i++; }
 
-    $stmt = db()->prepare('INSERT INTO projects(name, slug, description, color, icon, status, position, user_id)
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt = db()->prepare('INSERT INTO projects(name, slug, description, color, icon, status, position, user_id, git_url, website_url)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
     $stmt->execute([
         $name, $slug, $extra['description'] ?? '', $color,
         $extra['icon'] ?? '📁', $extra['status'] ?? 'active', $count, $uid,
+        $extra['git_url'] ?? null, $extra['website_url'] ?? null,
     ]);
     $id = (int)db()->lastInsertId();
     log_activity('project_created', $name, ['id' => $id]);
     return $id;
+}
+
+/** Save a base64 PDF for a project. Returns relative path or null. */
+function save_project_pdf(string $dataUri): ?string
+{
+    if (strpos($dataUri, 'base64,') === false) return null;
+    [$h, $b64] = explode('base64,', $dataUri, 2);
+    if (stripos($h, 'pdf') === false) return null;
+    $data = base64_decode($b64, true);
+    if ($data === false || strlen($data) > 8 * 1024 * 1024) return null;
+    if (substr($data, 0, 4) !== '%PDF') return null;
+    $dir = BASE_DIR . '/uploads/projects';
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    $fname = date('Ymd') . '_' . bin2hex(random_bytes(6)) . '.pdf';
+    if (@file_put_contents($dir . '/' . $fname, $data) === false) return null;
+    return 'uploads/projects/' . $fname;
 }
 
 function project_stats(int $projectId): array

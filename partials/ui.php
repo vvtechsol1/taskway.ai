@@ -157,7 +157,14 @@ function render_project_editor(): void
             </select>
           </div>
           <div class="field"><label class="fld" for="peDesc">Description <span class="muted">(optional)</span></label>
-            <textarea class="textarea" id="peDesc" placeholder="What is this project about?" style="min-height:70px"></textarea></div>
+            <textarea class="textarea" id="peDesc" placeholder="What is this project about?" style="min-height:64px"></textarea></div>
+          <div class="field"><label class="fld" for="peGit">🔗 Git repo link <span class="muted">(optional)</span></label>
+            <input class="input" id="peGit" placeholder="https://github.com/user/repo" autocomplete="off"></div>
+          <div class="field"><label class="fld" for="peWeb">🌐 Website URL <span class="muted">(optional)</span></label>
+            <input class="input" id="peWeb" placeholder="https://example.com" autocomplete="off"></div>
+          <div class="field"><label class="fld">📄 PDF attachment <span class="muted">(optional, max 8MB)</span></label>
+            <input class="input" type="file" id="pePdf" accept="application/pdf" style="padding:8px 11px">
+            <div class="small muted mt-2" id="pePdfCur"></div></div>
         </div>
         <div class="modal-foot">
           <button class="btn btn-ghost" data-close-modal>Cancel</button>
@@ -183,6 +190,11 @@ function render_project_editor(): void
         sw.querySelectorAll('.np-swatch').forEach(function (x) { x.classList.toggle('active', x.getAttribute('data-color') === col); });
         document.getElementById('peStatusField').style.display = edit ? '' : 'none';
         if (edit && data.status) document.getElementById('peStatus').value = data.status;
+        document.getElementById('peGit').value = data.git_url || '';
+        document.getElementById('peWeb').value = data.website_url || '';
+        document.getElementById('pePdf').value = '';
+        document.getElementById('pePdfCur').innerHTML = data.pdf_path
+          ? ('Current: <a href="' + ((window.TASKWAY && window.TASKWAY.base) || '') + '/' + data.pdf_path + '" target="_blank" rel="noopener" data-no-pjax>📄 view PDF</a>') : '';
         document.getElementById('peSave').textContent = edit ? 'Save changes' : 'Create project';
         document.getElementById('projectModal').classList.add('open');
         setTimeout(function () { document.getElementById('peName').focus(); }, 50);
@@ -192,10 +204,15 @@ function render_project_editor(): void
         var id = document.getElementById('peId').value;
         var name = document.getElementById('peName').value.trim();
         if (!name) { TW.toast('Give your project a name', 'info'); document.getElementById('peName').focus(); return; }
-        var payload = { name: name, icon: document.getElementById('peIcon').value.trim() || '📁', color: colorInp.value, description: document.getElementById('peDesc').value.trim() };
+        var payload = { name: name, icon: document.getElementById('peIcon').value.trim() || '📁', color: colorInp.value, description: document.getElementById('peDesc').value.trim(), git_url: document.getElementById('peGit').value.trim(), website_url: document.getElementById('peWeb').value.trim() };
         if (id) { payload.id = parseInt(id); payload.status = document.getElementById('peStatus').value; }
         var btn = document.getElementById('peSave'); btn.disabled = true;
         try {
+          var pf = document.getElementById('pePdf').files[0];
+          if (pf) {
+            if (pf.size > 8 * 1024 * 1024) { TW.toast('PDF too large (max 8MB)', 'err'); btn.disabled = false; return; }
+            payload.pdf = await new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(pf); });
+          }
           await TW.api(id ? 'update_project' : 'create_project', payload);
           TW.toast(id ? 'Project updated ✓' : 'Project created 🎉');
           setTimeout(function () { TW.reload(); }, 450);

@@ -212,6 +212,12 @@ function db_migrate_users(PDO $pdo): void
         }
     }
 
+    // Project resources: git repo, website, PDF attachment.
+    $pcols = $pdo->query("PRAGMA table_info(projects)")->fetchAll(PDO::FETCH_COLUMN, 1);
+    foreach (['git_url', 'website_url', 'pdf_path'] as $col) {
+        if (!in_array($col, $pcols, true)) $pdo->exec("ALTER TABLE projects ADD COLUMN $col TEXT DEFAULT NULL");
+    }
+
     // First run: create a super admin and hand it all pre-existing data.
     if ((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 0) {
         // Reuse a legacy single-user password if one was set, else a default.

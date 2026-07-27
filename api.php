@@ -138,13 +138,21 @@ try {
                 'icon'        => (string)($in['icon'] ?? '📁'),
                 'color'       => (string)($in['color'] ?? ''),
                 'description' => (string)($in['description'] ?? ''),
+                'git_url'     => trim((string)($in['git_url'] ?? '')) ?: null,
+                'website_url' => trim((string)($in['website_url'] ?? '')) ?: null,
             ]);
+            if (!empty($in['pdf']) && ($pdf = save_project_pdf((string)$in['pdf']))) {
+                db()->prepare('UPDATE projects SET pdf_path = ? WHERE id = ? AND user_id = ?')->execute([$pdf, $id, scope_uid()]);
+            }
             json_response(['ok' => true, 'id' => $id, 'project' => get_project($id)]);
 
         case 'update_project':
             $id = (int)($in['id'] ?? 0);
             if (!$id || !get_project($id)) json_response(['ok' => false, 'error' => 'Not found.'], 404);
-            $cols = ['name','description','color','icon','status'];
+            if (!empty($in['pdf']) && ($pdf = save_project_pdf((string)$in['pdf']))) {
+                db()->prepare('UPDATE projects SET pdf_path = ? WHERE id = ? AND user_id = ?')->execute([$pdf, $id, scope_uid()]);
+            }
+            $cols = ['name','description','color','icon','status','git_url','website_url'];
             $set = []; $args = [];
             foreach ($cols as $c) if (array_key_exists($c, $in)) { $set[] = "$c = ?"; $args[] = $in[$c]; }
             if ($set) {
