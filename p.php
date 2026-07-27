@@ -164,9 +164,14 @@ h1.dtitle{font-size:clamp(40px,7vw,92px);font-weight:900;line-height:1;letter-sp
 .links a:hover{background:var(--ink);color:#fff;transform:translateX(3px)}
 .links a:last-child{margin-bottom:0}
 .shots{padding:30px 0 10px}
-.shots h2{font-family:"Archivo";font-size:clamp(26px,4vw,44px);font-weight:800;margin-bottom:30px;letter-spacing:-.02em}
-.shot{border-radius:22px;overflow:hidden;border:1px solid var(--line);margin-bottom:30px;background:var(--card)}
+.shots h2{font-family:"Archivo";font-size:clamp(26px,4vw,44px);font-weight:800;margin-bottom:8px;letter-spacing:-.02em}
+.shots .sub{color:var(--mut);margin-bottom:30px;font-size:14.5px}
+.gal{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+.shot{border-radius:20px;overflow:hidden;border:1px solid var(--line);background:var(--card);display:block;transition:transform .35s cubic-bezier(.2,.6,.2,1),box-shadow .35s}
+.shot:hover{transform:translateY(-4px);box-shadow:0 24px 50px -24px rgba(16,16,18,.35)}
 .shot img{width:100%;display:block}
+.shot.wide{grid-column:1/-1}
+@media(max-width:720px){ .gal{grid-template-columns:1fr} }
 .dnav{display:flex;justify-content:space-between;gap:16px;padding:40px 0 0;flex-wrap:wrap}
 .dnav a{font-family:"Archivo";font-weight:700;font-size:16px;display:flex;align-items:center;gap:10px;transition:.25s}
 .dnav a:hover{color:#000;letter-spacing:.01em}
@@ -245,10 +250,15 @@ h1.dtitle{font-size:clamp(40px,7vw,92px);font-weight:900;line-height:1;letter-sp
 
 <?php if ($detail['_shots']): ?>
 <section class="shots"><div class="wrap">
-  <h2 class="rv">Screenshots</h2>
-  <?php foreach ($detail['_shots'] as $s): ?>
-    <figure class="shot rv"><img src="<?= esc(url($s)) ?>" alt="<?= esc($detail['name']) ?> screenshot" loading="lazy"></figure>
-  <?php endforeach; ?>
+  <h2 class="rv">Website Gallery</h2>
+  <p class="sub rv">Captured from the live site — <?= count($detail['_shots']) ?> section<?= count($detail['_shots']) === 1 ? '' : 's' ?></p>
+  <div class="gal">
+    <?php foreach ($detail['_shots'] as $i => $s): ?>
+      <a class="shot rv <?= $i === 0 ? 'wide' : '' ?>" href="<?= esc(url($s)) ?>" target="_blank" rel="noopener">
+        <img src="<?= esc(url($s)) ?>" alt="<?= esc($detail['name']) ?> — section <?= $i + 1 ?>" loading="lazy">
+      </a>
+    <?php endforeach; ?>
+  </div>
 </div></section>
 <?php endif; ?>
 
