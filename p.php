@@ -201,10 +201,12 @@ h1.dtitle{font-size:clamp(40px,7vw,92px);font-weight:900;line-height:1;letter-sp
   <a class="dback rv" href="<?= $base ?>#work">← Back to portfolio</a>
   <h1 class="disp dtitle rv"><?= esc($detail['name']) ?></h1>
   <div class="dmeta rv">
-    <div><i>Status</i><b><?= $detail['status'] === 'active' ? '🟢 In development' : ($detail['status'] === 'done' ? '✅ Completed' : '⏸ Paused') ?></b></div>
-    <div><i>Tasks shipped</i><b><?= $detail['_done'] ?> / <?= $detail['_total'] ?></b></div>
-    <div><i>Hours invested</i><b><?= esc(fmt_hours($detail['_min'])) ?>h</b></div>
-    <div><i>Technologies</i><b><?= $detail['_tech'] ? esc(implode(' · ', array_slice($detail['_tech'], 0, 3))) : '—' ?></b></div>
+    <div><i>Status</i><b><?= $detail['status'] === 'done' ? '✅ Completed' : '🟢 Live' ?></b></div>
+    <div><i>Year</i><b><?= esc(date('Y', strtotime($detail['created_at'] ?? 'now'))) ?></b></div>
+    <div><i>Stack</i><b><?= $detail['_tech'] ? esc(implode(' · ', array_slice($detail['_tech'], 0, 3))) : 'Web' ?></b></div>
+    <?php if (!empty($detail['website_url'])): ?>
+      <div style="display:flex;align-items:center"><a class="pill dark" href="<?= esc($detail['website_url']) ?>" target="_blank" rel="noopener">Visit live website ↗</a></div>
+    <?php endif; ?>
   </div>
   <div class="dcover rv"><?php cover_block($detail); ?></div>
 </div></section>
