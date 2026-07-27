@@ -224,10 +224,9 @@ h1.dtitle{font-size:clamp(40px,7vw,92px);font-weight:900;line-height:1;letter-sp
   <aside class="dside">
     <div class="box rv"><i>Project links</i>
       <div class="links">
-        <?php if (!empty($detail['website_url'])): ?><a href="<?= esc($detail['website_url']) ?>" target="_blank" rel="noopener">🌐 Live website <span>↗</span></a><?php endif; ?>
-        <?php if (!empty($detail['git_url'])): ?><a href="<?= esc($detail['git_url']) ?>" target="_blank" rel="noopener">🔗 Source code <span>↗</span></a><?php endif; ?>
-        <?php if (!empty($detail['pdf_path'])): ?><a href="<?= esc(url($detail['pdf_path'])) ?>" target="_blank" rel="noopener">📄 Documentation <span>↗</span></a><?php endif; ?>
-        <?php if (empty($detail['website_url']) && empty($detail['git_url']) && empty($detail['pdf_path'])): ?>
+        <?php if (!empty($detail['website_url'])): ?>
+          <a href="<?= esc($detail['website_url']) ?>" target="_blank" rel="noopener">🌐 Live website <span>↗</span></a>
+        <?php else: ?>
           <span style="color:var(--mut);font-size:13.5px">No public links yet.</span>
         <?php endif; ?>
       </div>
