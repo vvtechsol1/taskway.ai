@@ -92,35 +92,88 @@ function upwork_claude(string $job, string $budget, string $notes, array $me, ar
 /* Offline fallback engine                                             */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Extract the job's REAL tech requirements (known vocabulary only — no generic words),
+ * ordered by importance (core frameworks first).
+ */
+function upwork_job_requirements(string $jobL): array
+{
+    // keyword => aliases that count as the same requirement inside a project's tech list.
+    $vocab = [
+        'react'      => ['react', 'next.js', 'nextjs'],
+        'node'       => ['node', 'express', 'nest'],
+        'vue'        => ['vue', 'nuxt'],
+        'typescript' => ['typescript'],
+        'directus'   => ['directus', 'headless cms', 'cms'],
+        'wordpress'  => ['wordpress', 'woocommerce'],
+        'php'        => ['php', 'laravel', 'zend'],
+        'python'     => ['python', 'django', 'flask'],
+        'react native' => ['react native'],
+        'shopify'    => ['shopify'],
+        'mongodb'    => ['mongodb', 'mongo'],
+        'mysql'      => ['mysql', 'sqlite', 'postgres', 'prisma', 'd1'],
+        'redux'      => ['redux'],
+        'tailwind'   => ['tailwind'],
+        'bootstrap'  => ['bootstrap'],
+        'ai'         => ['ai', 'llm', 'openai', 'claude', 'gpt', 'rag', 'mcp'],
+        'api'        => ['api', 'rest', 'graphql', 'integration', 'webhook'],
+        'ecommerce'  => ['ecommerce', 'e-commerce', 'woocommerce', 'shop', 'store', 'checkout'],
+        'crm'        => ['crm'],
+        'saas'       => ['saas'],
+        'cloudflare' => ['cloudflare', 'workers'],
+    ];
+    $found = [];
+    foreach ($vocab as $req => $aliases) {
+        foreach ([$req, ...$aliases] as $a) {
+            if (mb_strpos($jobL, $a) !== false) { $found[$req] = $aliases; break; }
+        }
+    }
+    return $found;   // e.g. ['react'=>[aliases], 'node'=>[...], 'directus'=>[...]]
+}
+
 function upwork_local(string $job, string $budget, string $notes, array $me, array $projects, string $portfolioUrl): array
 {
     $jobL = mb_strtolower($job);
 
-    // Score each project by tech/domain keyword overlap with the job post.
+    // 1) Understand the client's MAIN requirements first.
+    $reqs = upwork_job_requirements($jobL);
+    $coreOrder = array_keys($reqs);   // vocab order = importance (frameworks before generic 'api')
+
+    // 2) Score projects against those requirements ONLY (tech match >> description mention).
     $scored = [];
     foreach ($projects as $p) {
+        $tech = mb_strtolower((string)($p['technologies'] ?? ''));
+        $desc = mb_strtolower((string)($p['description'] ?? '') . ' ' . $p['name']);
         $score = 0;
-        $hay = mb_strtolower(($p['technologies'] ?? '') . ' ' . ($p['description'] ?? '') . ' ' . $p['name']);
-        foreach (preg_split('/[^a-z0-9.+#]+/i', $hay) ?: [] as $w) {
-            if (mb_strlen($w) < 3) continue;
-            if (mb_strpos($jobL, mb_strtolower($w)) !== false) $score++;
+        $i = 0;
+        foreach ($reqs as $req => $aliases) {
+            $weight = max(1, 6 - $i);   // earlier (core) requirements weigh more
+            $i++;
+            foreach ([$req, ...$aliases] as $a) {
+                if ($tech !== '' && mb_strpos($tech, $a) !== false) { $score += 10 * $weight; break; }
+                if (mb_strpos($desc, $a) !== false) { $score += 2 * $weight; break; }
+            }
         }
-        if (!empty($p['website_url'])) $score += 1;   // prefer link-able work
-        if ($score > 0) $scored[] = ['p' => $p, 's' => $score];
+        if (!empty($p['website_url'])) $score += 3;
+        $scored[] = ['p' => $p, 's' => $score];
     }
     usort($scored, fn($a, $b) => $b['s'] <=> $a['s']);
-    $top = array_slice($scored, 0, 4);
-    if (!$top) {
-        $withUrl = array_values(array_filter($projects, fn($p) => !empty($p['website_url'])));
-        $top = array_map(fn($p) => ['p' => $p, 's' => 0], array_slice($withUrl, 0, 3));
-    }
+    // Keep only genuinely-matching projects (tech-level match); pad if too few.
+    $top = array_values(array_filter($scored, fn($t) => $t['s'] >= 40));
+    if (count($top) < 2) $top = array_values(array_filter($scored, fn($t) => $t['s'] >= 13));
+    if (count($top) < 2) $top = $scored;
+    $top = array_slice($top, 0, 4);
 
     $firstName = explode(' ', trim($me['name'] ?: $me['username']))[0];
 
-    // Detect a stack phrase for the hook.
-    $stacks = ['react', 'node', 'next.js', 'vue', 'php', 'wordpress', 'laravel', 'python', 'typescript', 'shopify', 'mongodb', 'mysql', 'ai', 'api'];
-    $hits = array_values(array_filter($stacks, fn($s) => mb_strpos($jobL, $s) !== false));
-    $stackPhrase = $hits ? strtoupper($hits[0][0]) . substr(implode(' + ', array_slice($hits, 0, 3)), 1) : 'this stack';
+    // Human-readable stack phrase from the MAIN requirements.
+    $pretty = ['react' => 'React', 'node' => 'Node.js', 'vue' => 'Vue', 'typescript' => 'TypeScript',
+        'directus' => 'Directus', 'wordpress' => 'WordPress', 'php' => 'PHP', 'python' => 'Python',
+        'react native' => 'React Native', 'shopify' => 'Shopify', 'mongodb' => 'MongoDB', 'mysql' => 'MySQL',
+        'redux' => 'Redux', 'tailwind' => 'Tailwind', 'bootstrap' => 'Bootstrap', 'ai' => 'AI',
+        'api' => 'API integrations', 'ecommerce' => 'e-commerce', 'crm' => 'CRM', 'saas' => 'SaaS', 'cloudflare' => 'Cloudflare'];
+    $main = array_slice($coreOrder, 0, 3);
+    $stackPhrase = $main ? implode(' + ', array_map(fn($k) => $pretty[$k] ?? $k, $main)) : 'this stack';
 
     // 3-second hook: diagnose a likely core problem for this kind of job (no greeting, no resume).
     $hooks = [
