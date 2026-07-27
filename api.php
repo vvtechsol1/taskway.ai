@@ -238,6 +238,21 @@ try {
             }
             json_response(['ok' => false, 'error' => 'Nothing to do.'], 400);
 
+        /* ---- Upwork proposal generator --------------------------- */
+        case 'upwork_proposal':
+            require_once __DIR__ . '/proposal.php';
+            $job = trim((string)($in['job'] ?? ''));
+            if (mb_strlen($job) < 40) json_response(['ok' => false, 'error' => 'Job post paste karein (thoda detail chahiye).'], 400);
+            $me = current_user();
+            $stmt = db()->prepare("SELECT name, description, technologies, website_url, status FROM projects
+                WHERE user_id = ? AND deleted_at IS NULL AND in_portfolio = 1 ORDER BY position, name");
+            $stmt->execute([current_user_id()]);
+            $projects = $stmt->fetchAll();
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $portfolioUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . url('p.php') . '?u=' . ($me['portfolio_token'] ?? '');
+            $result = upwork_generate($job, trim((string)($in['budget'] ?? '')), trim((string)($in['notes'] ?? '')), $me, $projects, $portfolioUrl);
+            json_response(['ok' => true] + $result);
+
         case 'portfolio_regen':
             $tok = bin2hex(random_bytes(8));
             db()->prepare('UPDATE users SET portfolio_token = ? WHERE id = ?')->execute([$tok, current_user_id()]);

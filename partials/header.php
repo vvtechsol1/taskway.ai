@@ -30,6 +30,7 @@ $nav = [
     ['analytics', '📈', 'Analytics', null],
     ['attendance','🕐', 'Attendance', null],
     ['portfolio', '💼', 'Portfolio', null],
+    ['upwork',    '📝', 'Upwork Proposal', null],
     ['messages',  '💬', 'Messages',  $unread ?: null],
 ];
 ?>
