@@ -371,6 +371,22 @@ function find_or_create_project(string $name, array $extra = []): int
     return $id;
 }
 
+/** Save a base64 image (png/jpg/webp/gif) for a project cover or screenshot. Returns relative path or null. */
+function save_project_image(string $dataUri): ?string
+{
+    if (strpos($dataUri, 'base64,') === false) return null;
+    [$h, $b64] = explode('base64,', $dataUri, 2);
+    if (!preg_match('#^data:image/(png|jpe?g|webp|gif)#i', $h, $m)) return null;
+    $data = base64_decode($b64, true);
+    if ($data === false || strlen($data) > 5 * 1024 * 1024) return null;
+    $ext = strtolower($m[1]) === 'jpeg' ? 'jpg' : strtolower($m[1]);
+    $dir = BASE_DIR . '/uploads/projects';
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    $fname = date('Ymd') . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
+    if (@file_put_contents($dir . '/' . $fname, $data) === false) return null;
+    return 'uploads/projects/' . $fname;
+}
+
 /** Save a base64 PDF for a project. Returns relative path or null. */
 function save_project_pdf(string $dataUri): ?string
 {

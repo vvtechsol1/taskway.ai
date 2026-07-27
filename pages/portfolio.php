@@ -93,6 +93,11 @@ require __DIR__ . '/../partials/header.php';
             </div>
           </div>
           <div class="task-side">
+            <button class="btn btn-soft btn-sm" onclick='pfCustomize(<?= json_encode([
+                'id' => (int)$p['id'], 'name' => $p['name'],
+                'thumb' => $p['thumb_path'] ?? '', 'tech' => $p['technologies'] ?? '',
+                'shots' => json_decode((string)($p['shots'] ?? '[]'), true) ?: [],
+            ], JSON_HEX_APOS | JSON_UNESCAPED_UNICODE) ?>)'>🎨 Customize</button>
             <div class="seg">
               <button type="button" class="<?= $on ? 'on' : '' ?>" data-v="done" onclick="pfProj(<?= (int)$p['id'] ?>,1,this)">🌐 Public</button>
               <button type="button" class="<?= $on ? '' : 'on' ?>" onclick="pfProj(<?= (int)$p['id'] ?>,0,this)">🔒 Private</button>
@@ -104,7 +109,101 @@ require __DIR__ . '/../partials/header.php';
   </div>
 </div>
 
+<!-- Customize project modal -->
+<div class="modal-back" id="pfcModal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head"><h3 id="pfcTitle">🎨 Customize</h3>
+      <button class="icon-btn" data-close-modal style="margin-left:auto">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="pfcId">
+      <div class="field">
+        <label class="fld">🖼️ Cover image <span class="muted">(portfolio card par dikhegi · png/jpg, max 5MB)</span></label>
+        <div class="row" style="gap:12px;align-items:center">
+          <div id="pfcThumbPrev" style="width:120px;height:76px;border-radius:12px;background:var(--surface-3);border:1px solid var(--border-2);display:grid;place-items:center;overflow:hidden;font-size:22px">🖼️</div>
+          <div class="grow">
+            <input type="file" id="pfcThumbFile" accept="image/*" class="input" style="padding:8px 11px">
+            <div class="help">Best: website ka screenshot ya banner (16:10)</div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label class="fld">🛠️ Technologies <span class="muted">(comma se alag karein)</span></label>
+        <input class="input" id="pfcTech" placeholder="React, PHP, SQLite, GSAP">
+      </div>
+      <div class="field">
+        <label class="fld">📸 Screenshots <span class="muted">(detail page par gallery — max 12)</span></label>
+        <input type="file" id="pfcShotFile" accept="image/*" multiple class="input" style="padding:8px 11px">
+        <div id="pfcShots" class="row wrap mt-2" style="gap:8px"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close-modal>Close</button>
+      <button class="btn btn-primary" onclick="pfcSaveTech()">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
+var PFC = { id: 0, base: (window.TASKWAY && window.TASKWAY.base) || '' };
+
+function pfCustomize(d) {
+  PFC.id = d.id;
+  document.getElementById('pfcId').value = d.id;
+  document.getElementById('pfcTitle').textContent = '🎨 ' + d.name;
+  document.getElementById('pfcTech').value = d.tech || '';
+  pfcThumbShow(d.thumb);
+  pfcShotsShow(d.shots || []);
+  document.getElementById('pfcThumbFile').value = '';
+  document.getElementById('pfcShotFile').value = '';
+  document.getElementById('pfcModal').classList.add('open');
+}
+function pfcThumbShow(path) {
+  var el = document.getElementById('pfcThumbPrev');
+  el.innerHTML = path ? '<img src="' + PFC.base + '/' + path + '" style="width:100%;height:100%;object-fit:cover">' : '🖼️';
+}
+function pfcShotsShow(shots) {
+  var box = document.getElementById('pfcShots');
+  box.innerHTML = '';
+  (shots || []).forEach(function (s) {
+    var d = document.createElement('div');
+    d.style.cssText = 'position:relative;width:86px;height:58px;border-radius:9px;overflow:hidden;border:1px solid var(--border-2)';
+    d.innerHTML = '<img src="' + PFC.base + '/' + s + '" style="width:100%;height:100%;object-fit:cover">' +
+      '<button style="position:absolute;top:2px;right:2px;width:20px;height:20px;border:0;border-radius:6px;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;font-size:11px;line-height:1" onclick="pfcShotDel(\'' + s + '\')">✕</button>';
+    box.appendChild(d);
+  });
+  if (!(shots || []).length) box.innerHTML = '<span class="small muted">Abhi koi screenshot nahi</span>';
+}
+function fileToData(f) { return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(f); }); }
+
+document.getElementById('pfcThumbFile').addEventListener('change', async function () {
+  var f = this.files[0]; if (!f) return;
+  if (f.size > 5 * 1024 * 1024) { TW.toast('Max 5MB', 'err'); return; }
+  try {
+    var r = await TW.api('portfolio_media', { id: PFC.id, thumb: await fileToData(f) });
+    pfcThumbShow(r.thumb); TW.toast('Cover saved ✓');
+  } catch (e) { TW.toast(e.message, 'err'); }
+});
+document.getElementById('pfcShotFile').addEventListener('change', async function () {
+  var files = Array.prototype.slice.call(this.files);
+  for (var i = 0; i < files.length; i++) {
+    if (files[i].size > 5 * 1024 * 1024) { TW.toast(files[i].name + ': max 5MB', 'err'); continue; }
+    try {
+      var r = await TW.api('portfolio_media', { id: PFC.id, shot: await fileToData(files[i]) });
+      pfcShotsShow(r.shots);
+    } catch (e) { TW.toast(e.message, 'err'); }
+  }
+  if (files.length) TW.toast('Screenshots uploaded ✓');
+  this.value = '';
+});
+async function pfcShotDel(path) {
+  try { var r = await TW.api('portfolio_media', { id: PFC.id, remove_shot: path }); pfcShotsShow(r.shots); }
+  catch (e) { TW.toast(e.message, 'err'); }
+}
+async function pfcSaveTech() {
+  try { await TW.api('update_project', { id: PFC.id, technologies: document.getElementById('pfcTech').value.trim() }); TW.toast('Saved ✓'); document.getElementById('pfcModal').classList.remove('open'); }
+  catch (e) { TW.toast(e.message, 'err'); }
+}
+
 async function pfEnable(on) {
   try {
     await TW.api('portfolio_save', { enabled: on, headline: document.getElementById('pfHeadline').value, bio: document.getElementById('pfBio').value });

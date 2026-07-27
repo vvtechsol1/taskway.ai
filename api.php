@@ -152,7 +152,7 @@ try {
             if (!empty($in['pdf']) && ($pdf = save_project_pdf((string)$in['pdf']))) {
                 db()->prepare('UPDATE projects SET pdf_path = ? WHERE id = ? AND user_id = ?')->execute([$pdf, $id, scope_uid()]);
             }
-            $cols = ['name','description','color','icon','status','git_url','website_url'];
+            $cols = ['name','description','color','icon','status','git_url','website_url','technologies'];
             $set = []; $args = [];
             foreach ($cols as $c) if (array_key_exists($c, $in)) { $set[] = "$c = ?"; $args[] = $in[$c]; }
             if ($set) {
@@ -204,6 +204,39 @@ try {
             db()->prepare('UPDATE projects SET in_portfolio = ? WHERE id = ? AND user_id = ?')
                 ->execute([!empty($in['show']) ? 1 : 0, $id, scope_uid()]);
             json_response(['ok' => true]);
+
+        case 'portfolio_media':
+            $id = (int)($in['id'] ?? 0);
+            $proj = $id ? get_project($id) : null;
+            if (!$proj) json_response(['ok' => false, 'error' => 'Not found.'], 404);
+            // Cover image
+            if (!empty($in['thumb'])) {
+                $img = save_project_image((string)$in['thumb']);
+                if (!$img) json_response(['ok' => false, 'error' => 'Invalid image (max 5MB, png/jpg/webp).'], 400);
+                if (!empty($proj['thumb_path']) && is_file(BASE_DIR . '/' . $proj['thumb_path'])) @unlink(BASE_DIR . '/' . $proj['thumb_path']);
+                db()->prepare('UPDATE projects SET thumb_path = ? WHERE id = ? AND user_id = ?')->execute([$img, $id, scope_uid()]);
+                json_response(['ok' => true, 'thumb' => $img]);
+            }
+            // Add screenshot
+            if (!empty($in['shot'])) {
+                $shots = json_decode((string)($proj['shots'] ?? '[]'), true) ?: [];
+                if (count($shots) >= 12) json_response(['ok' => false, 'error' => 'Max 12 screenshots.'], 400);
+                $img = save_project_image((string)$in['shot']);
+                if (!$img) json_response(['ok' => false, 'error' => 'Invalid image (max 5MB, png/jpg/webp).'], 400);
+                $shots[] = $img;
+                db()->prepare('UPDATE projects SET shots = ? WHERE id = ? AND user_id = ?')->execute([json_encode($shots), $id, scope_uid()]);
+                json_response(['ok' => true, 'shots' => $shots]);
+            }
+            // Remove screenshot
+            if (!empty($in['remove_shot'])) {
+                $shots = json_decode((string)($proj['shots'] ?? '[]'), true) ?: [];
+                $rm = (string)$in['remove_shot'];
+                $shots = array_values(array_filter($shots, fn($s) => $s !== $rm));
+                if (str_starts_with($rm, 'uploads/projects/') && is_file(BASE_DIR . '/' . $rm)) @unlink(BASE_DIR . '/' . $rm);
+                db()->prepare('UPDATE projects SET shots = ? WHERE id = ? AND user_id = ?')->execute([json_encode($shots), $id, scope_uid()]);
+                json_response(['ok' => true, 'shots' => $shots]);
+            }
+            json_response(['ok' => false, 'error' => 'Nothing to do.'], 400);
 
         case 'portfolio_regen':
             $tok = bin2hex(random_bytes(8));

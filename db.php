@@ -232,6 +232,10 @@ function db_migrate_users(PDO $pdo): void
     if (!in_array('in_portfolio', $pcols, true)) {
         $pdo->exec("ALTER TABLE projects ADD COLUMN in_portfolio INTEGER DEFAULT 1");
     }
+    // Portfolio presentation: cover image, tech stack, screenshots (JSON array of paths).
+    foreach (['thumb_path' => 'TEXT', 'technologies' => 'TEXT', 'shots' => 'TEXT'] as $col => $type) {
+        if (!in_array($col, $pcols, true)) $pdo->exec("ALTER TABLE projects ADD COLUMN $col $type DEFAULT NULL");
+    }
 
     // First run: create a super admin and hand it all pre-existing data.
     if ((int)$pdo->query('SELECT COUNT(*) FROM users')->fetchColumn() === 0) {
