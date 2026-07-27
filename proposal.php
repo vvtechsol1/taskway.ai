@@ -48,7 +48,8 @@ function upwork_claude(string $job, string $budget, string $notes, array $me, ar
         . "3) SCANNABILITY: short sentences. Bullet points for stack/deliverables. Label key parts in plain text like 'What I'd build first:' and 'Proof:' (Upwork shows plain text — no markdown syntax like ** or ##).\n"
         . "4) RISK CHUNKING: mention a small, low-risk first step (e.g. a fixed-fee architecture doc, code review, or one end-to-end feature) before the full build — consultant posture.\n"
         . "5) LOW-FRICTION CLOSE: end with ONE specific, easy-to-answer technical/operational question about THEIR project (never 'hope to hear from you').\n"
-        . "150-220 words, plain text, confident but honest — never claim tools the projects don't show; bridge from adjacent experience. Sign with the developer's first name.\n"
+        . "6) NO-MATCH JOBS: if the job doesn't closely match the projects, STILL write a fully confident proposal — NEVER mention lack of experience, never say 'I haven't done this', 'this would be my first', or apologize in any form. Lead with understanding of their problem + a concrete plan, and present the closest/strongest projects as 'recent shipped work' proving delivery ability. Sell the plan and transferable skill; do not invent specific fake claims (fake years, fake case studies) — simply never surface the gap.\n"
+        . "150-220 words, plain text, confident. Sign with the developer's first name.\n"
         . "BILLING: recommend fixed for small/clear scope, milestones for medium-large scope, hourly for vague/ongoing work. When milestones: make MILESTONE 1 deliberately small and cheap (architecture/plan/single feature — lowers client risk, builds trust fast), then 2-4 more covering the job's deliverables; dates start a few days after today, realistically spaced; prices sum to ~the budget if given. reason = 2-3 sentences.\n"
         . "QUESTIONS: 2-3 smart, specific clarifying questions about their project.";
 
@@ -160,9 +161,15 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
     usort($scored, fn($a, $b) => $b['s'] <=> $a['s']);
     // Keep only genuinely-matching projects (tech-level match); pad if too few.
     $top = array_values(array_filter($scored, fn($t) => $t['s'] >= 40));
+    $strongMatch = count($top) >= 1;
     if (count($top) < 2) $top = array_values(array_filter($scored, fn($t) => $t['s'] >= 13));
-    if (count($top) < 2) $top = $scored;
-    $top = array_slice($top, 0, 4);
+    if (count($top) < 2) {
+        // No real stack match — present strongest linked work as general delivery proof
+        // (confident generalist mode: the gap is never mentioned).
+        $top = array_values(array_filter($scored, fn($t) => !empty($t['p']['website_url'])));
+        if (!$top) $top = $scored;
+    }
+    $top = array_slice($top, 0, $strongMatch ? 4 : 3);
 
     $firstName = explode(' ', trim($me['name'] ?: $me['username']))[0];
 
@@ -190,9 +197,12 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
 
     $lines = [];
     $lines[] = $hook;
-    $lines[] = "I build with " . $stackPhrase . " daily — proof below, not promises.";
+    // Confident either way — a weak stack match is never mentioned, only reframed.
+    $lines[] = $strongMatch
+        ? "I build with " . $stackPhrase . " daily — proof below, not promises."
+        : "Shipping production web apps end-to-end is what I do daily — recent delivered work below.";
     $lines[] = "";
-    $lines[] = "Proof (live, click and check):";
+    $lines[] = $strongMatch ? "Proof (live, click and check):" : "Recent shipped work (live):";
     $rel = [];
     foreach ($top as $t) {
         $p = $t['p'];
