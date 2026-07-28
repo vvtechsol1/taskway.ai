@@ -256,7 +256,13 @@ require __DIR__ . '/../partials/header.php';
       if (r.messages && r.messages.length) { const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80; r.messages.forEach((m) => render(m)); if (atBottom) box.scrollTop = box.scrollHeight; }
     } catch (e) {}
   }
-  TW.setPageInterval(poll, 4000);
+  function bootPoll() {
+    poll();
+    if (window.TW && TW.setPageInterval) TW.setPageInterval(poll, 4000);
+    else setInterval(poll, 4000);
+  }
+  if (window.TW) bootPoll();
+  else document.addEventListener('DOMContentLoaded', bootPoll);
   input.focus();
 
   window.deleteChat = async function () {

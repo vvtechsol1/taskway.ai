@@ -226,7 +226,10 @@ require __DIR__ . '/../partials/header.php';
           ' <button class="icon-btn" style="width:28px;height:28px;font-size:12px" onclick="uqDel(' + it.id + ')">🗑</button></div>';
         box.appendChild(d);
       });
-    } catch (e) {}
+    } catch (e) {
+      var bx = document.getElementById('uqList');
+      if (bx && bx.textContent.indexOf('Loading') !== -1) bx.innerHTML = '<span class="muted">Queue load nahi ho saki — 20 sec mein dobara koshish hogi…</span>';
+    }
   }
   window.uqOpen = async function (id) {
     try {
@@ -238,8 +241,14 @@ require __DIR__ . '/../partials/header.php';
     if (!confirm('Remove from queue?')) return;
     try { await TW.api('upwork_queue_delete', { id: id }); loadQueue(); } catch (e) {}
   };
-  loadQueue();
-  if (window.TW && TW.setPageInterval) TW.setPageInterval(loadQueue, 20000);
+  // TW (app.js) footer mein load hota hai — full page load par uske ready hone ka intezaar karo.
+  function bootQueue() {
+    loadQueue();
+    if (window.TW && TW.setPageInterval) TW.setPageInterval(loadQueue, 20000);
+    else setInterval(loadQueue, 20000);
+  }
+  if (window.TW) bootQueue();
+  else document.addEventListener('DOMContentLoaded', bootQueue);
 
   window.upCopy = function (id) {
     var t = document.getElementById(id).textContent;
