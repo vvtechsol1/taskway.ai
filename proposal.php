@@ -41,7 +41,9 @@ function upwork_claude(string $job, string $budget, string $notes, array $me, ar
         . '{"cover_letter": string, "relevant_projects": [{"name": string, "url": string}], '
         . '"billing": {"mode": "fixed"|"milestones"|"hourly", "reason": string, '
         . '"milestones": [{"name": string, "date": "YYYY-MM-DD", "price": string}]}, '
-        . '"questions": [string]}' . "\n"
+        . '"questions": [string], '
+        . '"verdict": {"take": "yes"|"caution"|"no", "advice": string}}' . "\n"
+        . "VERDICT (for the developer's eyes only, write advice in Roman Urdu): honestly assess if he should take this job — budget vs scope realism, client red flags (aggressive tone, 'budget is final', fired previous freelancers, unrealistic deadline, vague scope), competition level, and fit with his stack. take='yes' (achhi job, le lo), 'caution' (le sakte hain lekin in shartoon ke saath...), 'no' (waqt zaya hoga). advice = 2-4 blunt sentences with the WHY.\n"
         . "COVER LETTER RULES (follow ALL):\n"
         . "1) 3-SECOND HOOK: the first 1-2 lines are all the client sees in preview. NEVER open with greetings, 'my name is', or 'I have X years experience'. Open by diagnosing their core problem, naming the key risk/bottleneck in their project, or validating their approach with an insight (e.g. 'Building an automated voice pipeline is smart — the bottleneck you'll hit is latency.').\n"
         . "2) SHOW DON'T TELL: right after the hook, give 2-3 clickable live links of the MOST relevant projects (bullet lines, one-line 'what it proves' each) + the portfolio link. No long tech-jargon paragraphs — proof beats promises. Never include irrelevant projects.\n"
@@ -252,6 +254,26 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
         $reason = "The scope reads open-ended/maintenance-like — hourly protects you from scope creep. Propose a weekly hours cap so the client feels in control.";
     }
 
+    // ---- Verdict: should you take this job? (advice in Roman Urdu, for the developer) ----
+    $flags = [];
+    if ($amount > 0 && $amount < 150 && $wordCount > 150) $flags[] = 'budget scope ke muqable bahut kam hai';
+    if (preg_match('/budget is final|non-negotiable|do not apply if/i', $job)) $flags[] = 'client ne budget lock kar diya hai (negotiate nahi hoga)';
+    if (preg_match('/fired|wasting|waste your connects|no exceptions|disqualified/i', $job)) $flags[] = 'client ka lehja sakht/aggressive hai';
+    if (preg_match('/(\d+)\s*(?:calendar\s*)?days?\s*total/i', $job, $dm) && (int)$dm[1] <= 7 && $wordCount > 150) $flags[] = 'deadline bahut tight hai (' . $dm[1] . ' din)';
+    $capsWords = preg_match_all('/\b[A-Z]{4,}\b/', $job);
+    if ($capsWords >= 8) $flags[] = 'zyada CAPS = demanding client ka pattern';
+
+    if (count($flags) >= 3) {
+        $take = 'no';
+        $advice = 'Meri raaye: chhor dein. ' . ucfirst(implode('; ', array_slice($flags, 0, 3))) . '. Itni mehnat ka sahi rate milna mushkil hai — connects kisi behtar job par lagayein. Sirf tab lein agar naya review/portfolio hi maqsad ho.';
+    } elseif (count($flags) >= 1 || !$strongMatch) {
+        $take = 'caution';
+        $advice = 'Le sakte hain, lekin soch kar: ' . implode('; ', $flags ?: ['stack aap ki core strength se thoda hat ke hai']) . '. Lein to scope pehle din likh kar lock karein aur pehla chhota milestone zaroor rakhein.';
+    } else {
+        $take = 'yes';
+        $advice = 'Achhi fit hai — stack aap ke projects se seedha match karta hai aur koi bara red flag nahi. Jaldi apply karein (pehle 10 proposals mein hone se reply-rate kaafi barh jata hai).';
+    }
+
     return [
         'cover_letter' => implode("\n", $lines),
         'relevant_projects' => $rel,
@@ -261,5 +283,6 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
             'Who will provide API keys/credentials and staging access, and when?',
             'What does "done" look like for the first delivery — is there a priority feature list?',
         ],
+        'verdict' => ['take' => $take, 'advice' => $advice],
     ];
 }

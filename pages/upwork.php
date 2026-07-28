@@ -80,6 +80,11 @@ require __DIR__ . '/../partials/header.php';
         <div class="card-head"><h3>❓ Client se poochne wale sawal</h3></div>
         <div id="upQuestions" style="display:flex;flex-direction:column;gap:8px"></div>
       </div>
+
+      <div class="card card-pad" id="upVerdictCard" style="border-width:2px">
+        <div class="card-head"><h3>🧭 Kya ye job leni chahiye?</h3><span class="badge" id="upVerdictBadge"></span></div>
+        <p class="dim" id="upVerdictText" style="margin:0;font-size:14.5px;line-height:1.7"></p>
+      </div>
     </div>
   </div>
 
@@ -138,6 +143,17 @@ require __DIR__ . '/../partials/header.php';
       d.className = 'small'; d.style.cssText = 'background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 13px';
       d.textContent = x; q.appendChild(d);
     });
+    // Verdict: should you take this job?
+    var vc = document.getElementById('upVerdictCard');
+    var v = r.verdict || null;
+    if (v && v.advice) {
+      vc.classList.remove('hidden');
+      var meta = { yes: ['🟢 Le lo!', 'var(--mint)'], caution: ['🟡 Soch kar', 'var(--amber)'], no: ['🔴 Chhor do', 'var(--coral)'] }[v.take] || ['🧭', 'var(--border-2)'];
+      document.getElementById('upVerdictBadge').textContent = meta[0];
+      document.getElementById('upVerdictBadge').style.cssText = 'background:transparent;border:1.5px solid ' + meta[1] + ';color:' + meta[1];
+      document.getElementById('upVerdictText').textContent = v.advice;
+      vc.style.borderColor = meta[1];
+    } else vc.classList.add('hidden');
     document.getElementById('upResult').classList.remove('hidden');
     document.getElementById('upResult').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
