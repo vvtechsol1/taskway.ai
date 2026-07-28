@@ -48,15 +48,17 @@ function upwork_claude(string $job, string $budget, string $notes, array $me, ar
         . "For milestones: say select 'By milestone', then give the exact rows to type (Description = short deliverable name, Due date, Amount — matching billing.milestones), remind that Description is client-visible, keep due dates with 1-2 din buffer, NEVER start work until the milestone shows Funded/Escrow, and note Upwork's ~10% service fee (amount received will be less). "
         . "For fixed: say select 'By project', one amount + delivery date. For hourly jobs the Terms section shows only the hourly rate — tell them what rate to enter and to always use the Upwork time tracker for payment protection.\n"
         . "VERDICT (for the developer's eyes only, write advice in Roman Urdu): honestly assess if he should take this job — budget vs scope realism, client red flags (aggressive tone, 'budget is final', fired previous freelancers, unrealistic deadline, vague scope), competition level, and fit with his stack. take='yes' (achhi job, le lo), 'caution' (le sakte hain lekin in shartoon ke saath...), 'no' (waqt zaya hoga). advice = 2-4 blunt sentences with the WHY.\n"
+        . "STEP 0 — CLIENT PSYCHOLOGY (do this analysis silently before writing): read the job post for what the client FEARS (getting burned by a bad freelancer, missed deadlines, poor communication, budget overruns, breaking existing code) and what they VALUE (speed, price, quality, control, simplicity). Mirror THEIR exact words/stack names. Address their biggest fear in one line. The whole letter is written for THE CLIENT's eyes — every line must answer 'what do I get?'.\n"
         . "COVER LETTER RULES (follow ALL):\n"
-        . "1) 3-SECOND HOOK: the first 1-2 lines are all the client sees in preview. NEVER open with greetings, 'my name is', or 'I have X years experience'. Open by diagnosing their core problem, naming the key risk/bottleneck in their project, or validating their approach with an insight (e.g. 'Building an automated voice pipeline is smart — the bottleneck you'll hit is latency.').\n"
-        . "2) SHOW DON'T TELL: right after the hook, give 2-3 clickable live links of the MOST relevant projects (bullet lines, one-line 'what it proves' each) + the portfolio link. No long tech-jargon paragraphs — proof beats promises. Never include irrelevant projects.\n"
-        . "3) SCANNABILITY: short sentences. Bullet points for stack/deliverables. Label key parts in plain text like 'What I'd build first:' and 'Proof:' (Upwork shows plain text — no markdown syntax like ** or ##).\n"
-        . "4) RISK CHUNKING: mention a small, low-risk first step (e.g. a fixed-fee architecture doc, code review, or one end-to-end feature) before the full build — consultant posture.\n"
-        . "5) LOW-FRICTION CLOSE: end with ONE specific, easy-to-answer technical/operational question about THEIR project (never 'hope to hear from you').\n"
-        . "6) NO-MATCH JOBS: if the job doesn't closely match the projects, STILL write a fully confident proposal — NEVER mention lack of experience, never say 'I haven't done this', 'this would be my first', or apologize in any form. Lead with understanding of their problem + a concrete plan, and present the closest/strongest projects as 'recent shipped work' proving delivery ability. Sell the plan and transferable skill; do not invent specific fake claims (fake years, fake case studies) — simply never surface the gap.\n"
-        . "7) WRITING POLISH: use proper em dashes (—) with spaces, never bare hyphens as punctuation; expand abbreviations on first mention (e.g. 'pull requests (PRs)'); natural phrasing ('you can check out'), correct articles, consistent punctuation around questions, consistent technical terminology.\n"
-        . "150-220 words, plain text, confident. Sign with the developer's first name.\n"
+        . "1) SHORT: 90-130 words MAX. Busy clients skim on phones. No filler, no throat-clearing.\n"
+        . "2) HUMAN, NOT AI: write like a busy senior freelancer typing a quick, confident message — contractions (I'll, you'll, that's), varied sentence lengths, no AI-sounding phrases ('I'm excited', 'I'd love to', 'exactly how I work', 'passionate', perfectly parallel bullets). One tiny imperfection of rhythm is fine.\n"
+        . "3) HOOK (1-2 lines): name their real problem or fear in their own words — never a greeting or self-intro.\n"
+        . "4) 'What you'll get:' — 3 concrete deliverable bullets tailored to THIS job (outcomes, not skills: 'a survey your visitors actually finish', not 'React experience'). This is where skills show, framed as what WE deliver to THEM.\n"
+        . "5) Proof: MAX 2 live links of genuinely matching projects + the portfolio link, each with 3-5 words of context.\n"
+        . "6) CLOSING MOVE (last 1-2 lines): drive toward hire with an assumptive, low-friction next step anchored in time — e.g. 'Send me the designs and you'll have a concrete plan + timeline within 24 hours.' Make replying feel like the obvious easy step. Never 'hope to hear from you'.\n"
+        . "7) NO-MATCH JOBS: never mention lack of experience or 'first time' — present closest work as recent shipped work; sell the plan (no fake specific claims).\n"
+        . "8) Polish: em dashes (—), expand abbreviations first mention, plain text only. If the client's post demands a specific application format, THEIR format wins over all of this.\n"
+        . "Sign with the developer's first name.\n"
         . "BILLING: recommend fixed for small/clear scope, milestones for medium-large scope, hourly for vague/ongoing work. When milestones: make MILESTONE 1 deliberately small and cheap (architecture/plan/single feature — lowers client risk, builds trust fast), then 2-4 more covering the job's deliverables; dates start a few days after today, realistically spaced; prices sum to ~the budget if given. reason = 2-3 sentences.\n"
         . "QUESTIONS: 2-3 smart, specific clarifying questions about their project.";
 
@@ -202,30 +204,50 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
     $hook = "Scoping this right in week one is what will keep this project on budget — most builds like this slip because the architecture isn't pinned down first.";
     foreach ($hooks as $k => $h) { if (mb_strpos($jobL, $k) !== false) { $hook = $h; break; } }
 
+    // Deliverable bullets tailored to the job's detected requirements ("what you'll get", not "my skills").
+    $deliverMap = [
+        'react'      => "A fast, clean React front end your users will actually feel the difference in",
+        'node'       => "A solid Node.js backend with APIs that don't break in production",
+        'vue'        => "A polished Vue front end matching your designs exactly",
+        'typescript' => "Fully typed code — fewer bugs now, cheaper changes later",
+        'wordpress'  => "WordPress work that's upgrade-safe — no plugin hacks that break later",
+        'php'        => "Clean PHP that respects your existing codebase — review first, never blind rewrites",
+        'python'     => "Reliable Python with proper error handling and tests",
+        'shopify'    => "Store changes that survive theme updates",
+        'api'        => "API integrations mapped and tested end to end",
+        'ecommerce'  => "A checkout flow that converts instead of leaking customers",
+        'ai'         => "AI features with guardrails — useful output, no embarrassing responses",
+        'crm'        => "A CRM setup your team will actually use daily",
+        'mysql'      => "A database layer that stays fast as your data grows",
+        'mongodb'    => "A database layer that stays fast as your data grows",
+    ];
+    $bullets = [];
+    foreach ($coreOrder as $k) {
+        if (isset($deliverMap[$k]) && !in_array($deliverMap[$k], $bullets, true)) $bullets[] = $deliverMap[$k];
+        if (count($bullets) >= 2) break;
+    }
+    $bullets[] = "Daily updates, small tested deliveries — you always know exactly where things stand";
+
     $lines = [];
     $lines[] = $hook;
-    // Confident either way — a weak stack match is never mentioned, only reframed.
-    $lines[] = $strongMatch
-        ? "I build with " . $stackPhrase . " daily — proof below, not promises."
-        : "Shipping production web apps end-to-end is what I do daily — recent delivered work below.";
     $lines[] = "";
-    $lines[] = $strongMatch ? "Proof (live, click and check):" : "Recent shipped work (live):";
+    $lines[] = "What you'll get:";
+    foreach ($bullets as $b) $lines[] = "• " . $b;
+    $lines[] = "";
+    $lines[] = "Recent work (live):";
     $rel = [];
-    foreach ($top as $t) {
+    foreach (array_slice($top, 0, 2) as $t) {
         $p = $t['p'];
         $url = $p['website_url'] ?: $portfolioUrl;
-        $tech = $p['technologies'] ? ' — ' . $p['technologies'] : '';
-        $lines[] = "• {$p['name']}{$tech}: {$url}";
+        $mainTech = trim(explode(',', (string)$p['technologies'])[0] ?? '');
+        $lines[] = "• {$url}" . ($mainTech ? " ({$mainTech})" : '');
         $rel[] = ['name' => $p['name'], 'url' => $url];
     }
-    $lines[] = "• Full portfolio: " . $portfolioUrl;
+    $lines[] = "• More: " . $portfolioUrl;
     $lines[] = "";
-    $lines[] = "What I'd build first:";
-    $lines[] = "• A short, fixed-fee first milestone — code/scope review + architecture plan — so you see how I work before committing to the full build.";
-    $lines[] = "• Then small, tested increments with daily updates. Clean, maintainable code — no surprise rewrites.";
-    if ($notes !== '') { $lines[] = ""; $lines[] = "Note: " . $notes; }
-    $lines[] = "";
-    $lines[] = "Quick question so I can scope this precisely: is there an existing codebase/design I'd be working from, or is this greenfield?";
+    if ($notes !== '') { $lines[] = "Note: " . $notes; $lines[] = ""; }
+    // Closing move: assumptive, time-anchored next step.
+    $lines[] = "Send over your " . ($strongMatch ? "scope/designs" : "details") . " and I'll have a concrete plan with timeline back to you within 24 hours — you'll know fast if I'm the right fit.";
     $lines[] = "";
     $lines[] = "— " . $firstName;
 
