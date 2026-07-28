@@ -76,6 +76,13 @@ require __DIR__ . '/../partials/header.php';
         </div>
       </div>
 
+      <div class="card card-pad hidden" id="upTermsCard">
+        <div class="card-head"><h3>🧾 Upwork "Terms" section — aise bharein</h3>
+          <div class="card-action"><button class="btn btn-soft btn-sm" onclick="upCopy('upTerms')">📋 Copy</button></div>
+        </div>
+        <pre id="upTerms" style="white-space:pre-wrap;font-family:inherit;font-size:13.5px;line-height:1.75;margin:0;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px"></pre>
+      </div>
+
       <div class="card card-pad">
         <div class="card-head"><h3>❓ Client se poochne wale sawal</h3></div>
         <div id="upQuestions" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -143,6 +150,10 @@ require __DIR__ . '/../partials/header.php';
       d.className = 'small'; d.style.cssText = 'background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 13px';
       d.textContent = x; q.appendChild(d);
     });
+    // Upwork Terms fill-in guide
+    var tc = document.getElementById('upTermsCard');
+    if (r.terms_guide) { tc.classList.remove('hidden'); document.getElementById('upTerms').textContent = r.terms_guide; }
+    else tc.classList.add('hidden');
     // Verdict: should you take this job?
     var vc = document.getElementById('upVerdictCard');
     var v = r.verdict || null;

@@ -42,7 +42,11 @@ function upwork_claude(string $job, string $budget, string $notes, array $me, ar
         . '"billing": {"mode": "fixed"|"milestones"|"hourly", "reason": string, '
         . '"milestones": [{"name": string, "date": "YYYY-MM-DD", "price": string}]}, '
         . '"questions": [string], '
-        . '"verdict": {"take": "yes"|"caution"|"no", "advice": string}}' . "\n"
+        . '"verdict": {"take": "yes"|"caution"|"no", "advice": string}, '
+        . '"terms_guide": string}' . "\n"
+        . "TERMS_GUIDE (Roman Urdu, for the developer): step-by-step instructions for Upwork's 'Terms / How do you want to be paid?' section. "
+        . "For milestones: say select 'By milestone', then give the exact rows to type (Description = short deliverable name, Due date, Amount — matching billing.milestones), remind that Description is client-visible, keep due dates with 1-2 din buffer, NEVER start work until the milestone shows Funded/Escrow, and note Upwork's ~10% service fee (amount received will be less). "
+        . "For fixed: say select 'By project', one amount + delivery date. For hourly jobs the Terms section shows only the hourly rate — tell them what rate to enter and to always use the Upwork time tracker for payment protection.\n"
         . "VERDICT (for the developer's eyes only, write advice in Roman Urdu): honestly assess if he should take this job — budget vs scope realism, client red flags (aggressive tone, 'budget is final', fired previous freelancers, unrealistic deadline, vague scope), competition level, and fit with his stack. take='yes' (achhi job, le lo), 'caution' (le sakte hain lekin in shartoon ke saath...), 'no' (waqt zaya hoga). advice = 2-4 blunt sentences with the WHY.\n"
         . "COVER LETTER RULES (follow ALL):\n"
         . "1) 3-SECOND HOOK: the first 1-2 lines are all the client sees in preview. NEVER open with greetings, 'my name is', or 'I have X years experience'. Open by diagnosing their core problem, naming the key risk/bottleneck in their project, or validating their approach with an insight (e.g. 'Building an automated voice pipeline is smart — the bottleneck you'll hit is latency.').\n"
@@ -274,6 +278,33 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
         $advice = 'Achhi fit hai — stack aap ke projects se seedha match karta hai aur koi bara red flag nahi. Jaldi apply karein (pehle 10 proposals mein hone se reply-rate kaafi barh jata hai).';
     }
 
+    // ---- Upwork "Terms" section — exact fill-in guide (Roman Urdu) ----
+    if ($mode === 'milestones' && $milestones) {
+        $tg = "Upwork ke Terms section mein 'By milestone' select karein. Phir " . count($milestones) . " rows add karein aur bilkul aise bharein:\n";
+        foreach ($milestones as $i => $m) {
+            $tg .= ($i + 1) . ") Description: \"{$m['name']}\"  |  Due date: {$m['date']}  |  Amount: {$m['price']}\n";
+        }
+        $tg .= "\nYaad rakhein:\n";
+        $tg .= "• Description client ko dikhta hai — chhota aur deliverable-style rakhein (upar wale copy kar lein)\n";
+        $tg .= "• Due dates mein 1-2 din ka buffer already rakha hai — late hone par client ko pehle bata dein\n";
+        $tg .= "• Kaam SIRF tab shuru karein jab pehla milestone 'Funded' (escrow) dikhaye — bina funding kaam = free kaam ka risk\n";
+        $tg .= "• Upwork ~10% service fee kaat-ta hai — haath mein amount thora kam aayega\n";
+        $tg .= "• Har milestone complete hone par 'Submit for payment' karein — approval ya 14 din mein payment release ho jati hai";
+    } elseif ($mode === 'fixed') {
+        $amt = $amount > 0 ? '$' . number_format($amount, 0) : '(apna quote)';
+        $tg = "Upwork ke Terms section mein 'By project' select karein.\n";
+        $tg .= "• Amount: {$amt} (poora ek saath, kaam mukammal hone par release hoga)\n";
+        $tg .= "• Delivery date: aaj se scope ke hisaab se 1-2 din buffer ke saath rakhein\n";
+        $tg .= "• Kaam shuru karne se pehle confirm karein ke poora amount escrow mein Funded hai\n";
+        $tg .= "• Chhoti fixed jobs par bhi deliverables chat mein likh kar confirm karwa lein — 'scope creep' se bachein";
+    } else {
+        $rate = $amount > 0 ? '$' . number_format($amount, 0) . '/hr' : 'apna hourly rate';
+        $tg = "Ye job hourly hai — Terms section mein milestone wala hissa nahi aayega, sirf hourly rate poocha jayega.\n";
+        $tg .= "• Rate: {$rate} likhein (Upwork fee ke baad ~10% kam milega, isko soch kar rate rakhein)\n";
+        $tg .= "• Hamesha Upwork Desktop Time Tracker se kaam karein — tabhi Hourly Payment Protection milti hai\n";
+        $tg .= "• Weekly hours cap client ne set kiya ho to us ke andar rahein; extra hours pehle poochh kar";
+    }
+
     return [
         'cover_letter' => implode("\n", $lines),
         'relevant_projects' => $rel,
@@ -284,5 +315,6 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
             'What does "done" look like for the first delivery — is there a priority feature list?',
         ],
         'verdict' => ['take' => $take, 'advice' => $advice],
+        'terms_guide' => $tg,
     ];
 }
