@@ -31,7 +31,6 @@ $navTasksSub = [
 ];
 $navAfter = [
     ['projects',  '📁', 'Projects',  $navActiveProjects ?: null],
-    ['analytics', '📈', 'Analytics', null],
     ['attendance','🕐', 'Attendance', null],
     ['portfolio', '💼', 'Portfolio', null],
     ['upwork',    '📝', 'Upwork Proposal', null],
