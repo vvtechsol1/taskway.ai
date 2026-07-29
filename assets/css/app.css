@@ -164,6 +164,16 @@ h1, h2, h3, h4 { margin: 0; font-weight: 700; letter-spacing: -.02em; }
   width: 4px; height: 22px; border-radius: 99px; background: var(--primary);
 }
 .nav-badge { margin-left: auto; font-size: 11px; font-weight: 700; background: var(--surface-3); color: var(--text-2); padding: 1px 8px; border-radius: 99px; }
+/* Nav group with collapsible submenu */
+.nav-group .nav-item .nav-badge { margin-left: auto; }
+.nav-caret { border: 0; background: none; cursor: pointer; color: var(--text-3); font-size: 12px; padding: 3px 6px; margin-left: 4px; border-radius: 7px; transition: transform var(--dur) var(--ease), background var(--dur) var(--ease); transform: rotate(-90deg); }
+.nav-caret:hover { background: var(--surface-3); color: var(--text); }
+.nav-group.open .nav-caret { transform: rotate(0deg); }
+.nav-group .nav-item .nav-badge + .nav-caret { margin-left: 4px; }
+.nav-sub { display: none; margin-left: 16px; padding-left: 10px; border-left: 2px solid var(--border); }
+.nav-group.open .nav-sub { display: block; animation: fadeUp .2s var(--ease); }
+.nav-sub .nav-item { padding: 8px 10px; font-size: 13.5px; }
+.nav-sub .nav-item.active::before { left: -28px; }
 .notif-badge { position: absolute; top: -3px; right: -3px; background: var(--coral); color: #fff; font-size: 10px; font-weight: 800; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; display: grid; place-items: center; box-shadow: 0 0 0 2px var(--bg); }
 .nav-item.active .nav-badge { background: var(--primary); color: #fff; }
 

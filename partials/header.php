@@ -21,11 +21,15 @@ $np = db()->prepare("SELECT COUNT(*) FROM projects WHERE user_id = ? AND status=
 $np->execute([scope_uid()]);
 $navActiveProjects = (int)$np->fetchColumn();
 
-$nav = [
+// "Tasks" is a group: parent = tasks page, submenu = Brain Dump + Board.
+$navBefore = [
     ['dashboard', '📊', 'Dashboard', null],
-    ['braindump', '🧠', 'Brain Dump', null],
-    ['tasks',     '✅', 'Tasks',     $navOpenTasks ?: null],
-    ['board',     '📋', 'Board',     null],
+];
+$navTasksSub = [
+    ['braindump', '🧠', 'Brain Dump'],
+    ['board',     '📋', 'Board'],
+];
+$navAfter = [
     ['projects',  '📁', 'Projects',  $navActiveProjects ?: null],
     ['analytics', '📈', 'Analytics', null],
     ['attendance','🕐', 'Attendance', null],
@@ -33,6 +37,7 @@ $nav = [
     ['upwork',    '📝', 'Upwork Proposal', null],
     ['messages',  '💬', 'Messages',  $unread ?: null],
 ];
+$tasksGroupActive = in_array($ACTIVE, ['tasks', 'braindump', 'board'], true);
 ?>
 <!doctype html>
 <html lang="en" data-theme="<?= esc($theme === 'auto' ? '' : $theme) ?>">
@@ -55,7 +60,30 @@ $nav = [
       <span class="brand-name">Task<span>way</span></span>
     </a>
     <nav>
-      <?php foreach ($nav as [$key, $ic, $label, $badge]): ?>
+      <?php foreach ($navBefore as [$key, $ic, $label, $badge]): ?>
+        <a href="<?= page_url($key) ?>" class="nav-item <?= $ACTIVE === $key ? 'active' : '' ?>">
+          <span class="ic"><?= $ic ?></span><?= esc($label) ?>
+          <?php if ($badge): ?><span class="nav-badge"><?= (int)$badge ?></span><?php endif; ?>
+        </a>
+      <?php endforeach; ?>
+
+      <!-- Tasks group: parent + submenu (Brain Dump, Board) -->
+      <div class="nav-group <?= $tasksGroupActive ? 'open' : '' ?>" id="navTasksGroup">
+        <a href="<?= page_url('tasks') ?>" class="nav-item <?= $ACTIVE === 'tasks' ? 'active' : '' ?>">
+          <span class="ic">✅</span>Tasks
+          <?php if ($navOpenTasks): ?><span class="nav-badge"><?= (int)$navOpenTasks ?></span><?php endif; ?>
+          <button type="button" class="nav-caret" data-nav-caret="navTasksGroup" aria-label="Toggle submenu">▾</button>
+        </a>
+        <div class="nav-sub">
+          <?php foreach ($navTasksSub as [$key, $ic, $label]): ?>
+            <a href="<?= page_url($key) ?>" class="nav-item <?= $ACTIVE === $key ? 'active' : '' ?>">
+              <span class="ic"><?= $ic ?></span><?= esc($label) ?>
+            </a>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <?php foreach ($navAfter as [$key, $ic, $label, $badge]): ?>
         <a href="<?= page_url($key) ?>" class="nav-item <?= $ACTIVE === $key ? 'active' : '' ?>">
           <span class="ic"><?= $ic ?></span><?= esc($label) ?>
           <?php if ($key === 'messages'): ?>

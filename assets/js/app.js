@@ -182,6 +182,15 @@
     const closeM = e.target.closest('[data-close-modal]');
     if (closeM) { const back = closeM.closest('.modal-back'); if (back) back.classList.remove('open'); }
 
+    // Sidebar nav-group caret (Tasks submenu) — remembers state
+    const caret = e.target.closest('[data-nav-caret]');
+    if (caret) {
+      e.preventDefault(); e.stopPropagation();
+      const g = document.getElementById(caret.getAttribute('data-nav-caret'));
+      if (g) { g.classList.toggle('open'); localStorage.setItem('tw-' + g.id, g.classList.contains('open') ? '1' : '0'); }
+      return;
+    }
+
     // Attendance check in / check out
     const att = e.target.closest('[data-attendance]');
     if (att) {
@@ -227,6 +236,13 @@
   }
   window.TWEnhancePasswords = enhancePasswords;
   document.addEventListener('DOMContentLoaded', () => enhancePasswords());
+
+  /* ---------- Restore nav-group open/closed state ---------- */
+  document.querySelectorAll('.nav-group[id]').forEach((g) => {
+    const saved = localStorage.getItem('tw-' + g.id);
+    if (saved === '1') g.classList.add('open');
+    else if (saved === '0' && !g.querySelector('.nav-item.active')) g.classList.remove('open');
+  });
 
   function fadeRemove(node) {
     if (!node) return;
