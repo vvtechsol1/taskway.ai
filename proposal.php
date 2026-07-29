@@ -19,7 +19,7 @@ function extract_reference_links(string $text): array
         foreach ($m[0] as $u) $links[] = 'https://' . $u;
     }
     // Bare domains like crewupapp.co or dropbox.com/scl/...
-    if (preg_match_all('#(?<![/\w@.])([a-z0-9][a-z0-9-]*\.)+(com|net|org|io|co|app|dev|ai|me)(/[^\s<>"\')\]]*)?#i', $text, $m)) {
+    if (preg_match_all('#(?<![/\w@.-])([a-z0-9][a-z0-9-]*\.)+(com|net|org|io|co|app|dev|ai|me)(/[^\s<>"\')\]]*)?#i', $text, $m)) {
         foreach ($m[0] as $u) $links[] = 'https://' . $u;
     }
     // Clean + dedupe (by normalized form), keep original order, cap at 8.
