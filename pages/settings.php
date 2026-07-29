@@ -90,7 +90,8 @@ require __DIR__ . '/../partials/header.php';
 <?php endif; ?>
 
 <div style="max-width:1240px">
-  <div class="grid cols-2 mb-6" style="align-items:start">
+  <div class="grid cols-2" style="align-items:start">
+  <div style="display:flex;flex-direction:column;gap:24px"><!-- LEFT column -->
   <!-- Profile -->
   <div class="card card-pad animate">
     <div class="card-head"><h3>👤 Profile</h3></div>
@@ -116,7 +117,50 @@ require __DIR__ . '/../partials/header.php';
     </form>
   </div>
 
-  <!-- Upwork profile (fuels proposals) — Profile ke saath parallel -->
+  <!-- Password -->
+  <div class="card card-pad animate d1">
+    <div class="card-head"><h3>🔒 Change password</h3></div>
+    <form method="post" action="<?= page_url('settings') ?>">
+      <input type="hidden" name="form" value="password">
+      <div class="field"><label class="fld">Current password</label><input class="input" type="password" name="current_password" required></div>
+      <div class="row wrap" style="gap:16px">
+        <div class="field grow"><label class="fld">New password</label><input class="input" type="password" name="new_password" required></div>
+        <div class="field grow"><label class="fld">Confirm new password</label><input class="input" type="password" name="confirm_password" required></div>
+      </div>
+      <button class="btn btn-primary mt-4">Update password</button>
+    </form>
+  </div>
+
+  <!-- Appearance -->
+  <div class="card card-pad animate d1">
+    <div class="card-head"><h3>🎨 Appearance</h3></div>
+    <form method="post" action="<?= page_url('settings') ?>">
+      <input type="hidden" name="form" value="appearance">
+      <div class="row wrap" style="gap:8px">
+        <?php foreach (['light' => '☀️ Light', 'dark' => '🌙 Dark', 'auto' => '🖥️ Auto'] as $v => $lbl): ?>
+          <label class="chip <?= setting('theme') === $v ? 'active' : '' ?>"><input type="radio" name="theme" value="<?= $v ?>" <?= setting('theme') === $v ? 'checked' : '' ?> style="display:none" onchange="this.form.submit()"><?= $lbl ?></label>
+        <?php endforeach; ?>
+      </div>
+      <div class="help mt-2">The top-bar 🌙 toggle also switches theme instantly and remembers your choice on this device.</div>
+    </form>
+  </div>
+
+  <!-- About + danger -->
+  <div class="card card-pad animate d3">
+    <div class="card-head"><h3>ℹ️ About</h3></div>
+    <p class="dim small"><?= APP_NAME ?> v<?= APP_VERSION ?> — your AI-moderated personal work OS.</p>
+    <div class="divider"></div>
+    <strong style="color:var(--coral)">Danger zone</strong>
+    <p class="small muted mt-2">This permanently deletes <strong>your</strong> tasks, projects and time — your account stays.</p>
+    <form method="post" action="<?= page_url('settings') ?>" onsubmit="return confirm('Delete ALL your tasks, projects and time entries? This cannot be undone.')">
+      <input type="hidden" name="form" value="reset"><input type="hidden" name="reset" value="1">
+      <button class="btn btn-danger mt-2">Reset my data</button>
+    </form>
+  </div>
+  </div><!-- /LEFT -->
+
+  <div style="display:flex;flex-direction:column;gap:24px"><!-- RIGHT column -->
+  <!-- Upwork profile (fuels proposals) -->
   <div class="card card-pad animate d1">
     <div class="card-head"><h3>🧑‍💼 Upwork Profile</h3><span class="badge in_progress"><span class="dot"></span>Proposals ka fuel</span></div>
     <p class="small muted" style="margin:0 0 14px">Ye info proposals ki opening banati hai — apne Upwork profile se copy karein.</p>
@@ -137,36 +181,6 @@ require __DIR__ . '/../partials/header.php';
       <button class="btn btn-primary mt-2">Save Upwork profile</button>
     </form>
   </div>
-  </div><!-- /grid -->
-
-  <!-- Password -->
-  <div class="card card-pad mb-6 animate d1">
-    <div class="card-head"><h3>🔒 Change password</h3></div>
-    <form method="post" action="<?= page_url('settings') ?>">
-      <input type="hidden" name="form" value="password">
-      <div class="field"><label class="fld">Current password</label><input class="input" type="password" name="current_password" required></div>
-      <div class="row wrap" style="gap:16px">
-        <div class="field grow"><label class="fld">New password</label><input class="input" type="password" name="new_password" required></div>
-        <div class="field grow"><label class="fld">Confirm new password</label><input class="input" type="password" name="confirm_password" required></div>
-      </div>
-      <button class="btn btn-primary mt-4">Update password</button>
-    </form>
-  </div>
-
-  <!-- Appearance -->
-  <div class="card card-pad mb-6 animate d1">
-    <div class="card-head"><h3>🎨 Appearance</h3></div>
-    <form method="post" action="<?= page_url('settings') ?>">
-      <input type="hidden" name="form" value="appearance">
-      <div class="row wrap" style="gap:8px">
-        <?php foreach (['light' => '☀️ Light', 'dark' => '🌙 Dark', 'auto' => '🖥️ Auto'] as $v => $lbl): ?>
-          <label class="chip <?= setting('theme') === $v ? 'active' : '' ?>"><input type="radio" name="theme" value="<?= $v ?>" <?= setting('theme') === $v ? 'checked' : '' ?> style="display:none" onchange="this.form.submit()"><?= $lbl ?></label>
-        <?php endforeach; ?>
-      </div>
-      <div class="help mt-2">The top-bar 🌙 toggle also switches theme instantly and remembers your choice on this device.</div>
-    </form>
-  </div>
-
   <?php if (is_super_admin()): ?>
   <!-- Brain Dump AI (global, admin) -->
   <div class="card card-pad mb-6 animate d2">
@@ -190,19 +204,8 @@ require __DIR__ . '/../partials/header.php';
     </form>
   </div>
   <?php endif; ?>
-
-  <!-- About + danger -->
-  <div class="card card-pad animate d3">
-    <div class="card-head"><h3>ℹ️ About</h3></div>
-    <p class="dim small"><?= APP_NAME ?> v<?= APP_VERSION ?> — your AI-moderated personal work OS.</p>
-    <div class="divider"></div>
-    <strong style="color:var(--coral)">Danger zone</strong>
-    <p class="small muted mt-2">This permanently deletes <strong>your</strong> tasks, projects and time — your account stays.</p>
-    <form method="post" action="<?= page_url('settings') ?>" onsubmit="return confirm('Delete ALL your tasks, projects and time entries? This cannot be undone.')">
-      <input type="hidden" name="form" value="reset"><input type="hidden" name="reset" value="1">
-      <button class="btn btn-danger mt-2">Reset my data</button>
-    </form>
-  </div>
+  </div><!-- /RIGHT -->
+  </div><!-- /grid -->
 </div>
 
 <?php require __DIR__ . '/../partials/footer.php'; ?>
