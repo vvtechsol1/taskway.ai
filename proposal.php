@@ -194,7 +194,7 @@ function upwork_build_prompt(string $job, string $budget, string $notes, array $
         . "7) NO-MATCH JOBS: never mention lack of experience or 'first time' — present closest work as recent shipped work; sell the plan (no fake specific claims).\n"
         . "8) Polish: em dashes (—), expand abbreviations first mention, plain text only. If the client's post demands a specific application format, THEIR format wins over all of this.\n"
         . "Sign with the developer's first name.\n"
-        . "BILLING: recommend fixed for small/clear scope, milestones for medium-large scope, hourly for vague/ongoing work. When milestones: make MILESTONE 1 deliberately small and cheap (architecture/plan/single feature — lowers client risk, builds trust fast), then 2-4 more covering the job's deliverables; dates start a few days after today, realistically spaced; prices sum to ~the budget if given. reason = 2-3 sentences.\n"
+        . "BILLING: recommend fixed for small/clear scope, milestones for medium-large scope, hourly for vague/ongoing work. MILESTONE COUNT MUST MATCH THE BUDGET AND SCOPE — think like the client (every milestone adds funding/approval friction): under ~\$300 use MAX 2 milestones; \$300-1000 use 2-3; only \$1000+/complex projects deserve 4-5. Never micro-milestones under ~\$50 — each must be a meaningful deliverable the client can see/test. Milestone 1 modest (a plan + something working) to lower their risk; dates start a few days after today, realistically spaced; prices sum to ~the budget. reason = 2-3 sentences.\n"
         . "QUESTIONS: 2-3 smart, specific clarifying questions about their project.";
 
     $userMsg = "TODAY: " . date('Y-m-d') . "\nDEVELOPER: " . ($me['name'] ?: $me['username'])
@@ -383,13 +383,27 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
     $milestones = [];
     if ($mode === 'milestones') {
         $base = $amount > 0 ? $amount : 600;
-        // Milestone 1 deliberately small & cheap: lowers the client's risk, builds trust fast.
-        $cuts = [
-            ['Kickoff: code/scope review + architecture plan (doc)', 0.12, 3],
-            ['Core features development', 0.45, 12],
-            ['Integrations, testing & polish', 0.28, 18],
-            ['Deployment, handover & documentation', 0.15, 23],
-        ];
+        // Milestone count scales with budget — micro-milestones on small jobs look amateur
+        // and add funding/approval friction for the client.
+        if ($base < 300) {
+            $cuts = [
+                ['Kickoff: plan + first working piece (demo)', 0.30, 6],
+                ['Complete build, testing & handover', 0.70, 18],
+            ];
+        } elseif ($base < 1000) {
+            $cuts = [
+                ['Kickoff: plan + first working feature', 0.20, 5],
+                ['Core build', 0.50, 14],
+                ['Testing, polish & handover', 0.30, 21],
+            ];
+        } else {
+            $cuts = [
+                ['Kickoff: code/scope review + architecture plan', 0.12, 4],
+                ['Core features development', 0.45, 13],
+                ['Integrations, testing & polish', 0.28, 20],
+                ['Deployment, handover & documentation', 0.15, 26],
+            ];
+        }
         foreach ($cuts as [$name, $pct, $days]) {
             $milestones[] = [
                 'name' => $name,
