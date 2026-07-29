@@ -19,7 +19,7 @@ putenv('TZ=Asia/Karachi');
 
 define('APP_NAME', 'Taskway');
 define('APP_TAGLINE', 'Your AI-moderated work OS');
-define('APP_VERSION', '1.1.7');
+define('APP_VERSION', '1.1.8');
 
 define('BASE_DIR', __DIR__);
 // On hosting, point TASKWAY_DATA_DIR at a persistent volume (e.g. /data) so the SQLite file survives redeploys.
