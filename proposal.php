@@ -54,12 +54,77 @@ function upwork_generate(string $job, string $budget, string $notes, array $me, 
         'reference_links' => extract_reference_links($job),
         'job_techs'       => upwork_job_tech_names($job),
     ];
-    $key = trim((string)setting('claude_api_key'));
-    if (setting('ai_provider') === 'claude' || $key !== '') {
+    $provider = ai_active_provider();
+    if ($provider !== 'local') {
         $r = upwork_claude($job, $budget, $notes, $me, $projects, $portfolioUrl);
-        if ($r !== null) return $r + $extras + ['engine' => 'claude'];
+        if ($r !== null) return $r + $extras + ['engine' => $provider];
     }
     return upwork_local($job, $budget, $notes, $me, $projects, $portfolioUrl) + $extras + ['engine' => 'local'];
+}
+
+/* ------------------------------------------------------------------ */
+/* AI provider layer: Claude / Groq (free) / Gemini (free)             */
+/* ------------------------------------------------------------------ */
+
+function ai_api_key(): string
+{
+    $k = trim((string)setting('ai_api_key'));
+    return $k !== '' ? $k : trim((string)setting('claude_api_key'));
+}
+
+/** Which AI provider is actually usable right now. */
+function ai_active_provider(): string
+{
+    $p = setting('ai_provider', 'local');
+    if (!in_array($p, ['claude', 'groq', 'gemini'], true)) return 'local';
+    return ai_api_key() !== '' ? $p : 'local';
+}
+
+function ai_default_model(string $provider): string
+{
+    return ['claude' => 'claude-sonnet-5', 'groq' => 'llama-3.3-70b-versatile', 'gemini' => 'gemini-2.0-flash'][$provider] ?? '';
+}
+
+/** Send system+user to the active provider; returns raw text or null on any failure. */
+function ai_complete(string $system, string $userMsg): ?string
+{
+    $provider = ai_active_provider();
+    if ($provider === 'local') return null;
+    $key = ai_api_key();
+    $model = trim((string)setting('ai_model')) ?: (trim((string)setting('claude_model')) ?: '');
+    if ($model === '' || ($provider !== 'claude' && str_starts_with($model, 'claude'))) $model = ai_default_model($provider);
+
+    if ($provider === 'claude') {
+        $url = 'https://api.anthropic.com/v1/messages';
+        $headers = ['content-type: application/json', 'x-api-key: ' . $key, 'anthropic-version: 2023-06-01'];
+        $payload = ['model' => $model, 'max_tokens' => 3000, 'system' => $system,
+            'messages' => [['role' => 'user', 'content' => $userMsg]]];
+        $path = fn($d) => $d['content'][0]['text'] ?? null;
+    } elseif ($provider === 'groq') {
+        $url = 'https://api.groq.com/openai/v1/chat/completions';
+        $headers = ['content-type: application/json', 'Authorization: Bearer ' . $key];
+        $payload = ['model' => $model, 'max_tokens' => 3000, 'temperature' => 0.7,
+            'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $userMsg]]];
+        $path = fn($d) => $d['choices'][0]['message']['content'] ?? null;
+    } else { // gemini
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent?key=' . rawurlencode($key);
+        $headers = ['content-type: application/json'];
+        $payload = ['system_instruction' => ['parts' => [['text' => $system]]],
+            'contents' => [['parts' => [['text' => $userMsg]]]],
+            'generationConfig' => ['maxOutputTokens' => 3000]];
+        $path = fn($d) => $d['candidates'][0]['content']['parts'][0]['text'] ?? null;
+    }
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_TIMEOUT => 90,
+        CURLOPT_HTTPHEADER => $headers, CURLOPT_POSTFIELDS => json_encode($payload),
+    ]);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($resp === false || $code >= 300) return null;
+    return $path(json_decode((string)$resp, true) ?: []);
 }
 
 /* ------------------------------------------------------------------ */
@@ -68,10 +133,6 @@ function upwork_generate(string $job, string $budget, string $notes, array $me, 
 
 function upwork_claude(string $job, string $budget, string $notes, array $me, array $projects, string $portfolioUrl): ?array
 {
-    $key = trim((string)setting('claude_api_key'));
-    if ($key === '') return null;
-    $model = setting('claude_model', 'claude-sonnet-5') ?: 'claude-sonnet-5';
-
     $plist = array_map(fn($p) => [
         'name' => $p['name'],
         'about' => mb_substr((string)$p['description'], 0, 400),
@@ -112,29 +173,10 @@ function upwork_claude(string $job, string $budget, string $notes, array $me, ar
         . "\n\nMY REAL PROJECTS (JSON):\n" . json_encode($plist, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
         . "\n\nJOB POST:\n" . $job;
 
-    $ch = curl_init('https://api.anthropic.com/v1/messages');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_TIMEOUT => 90,
-        CURLOPT_HTTPHEADER => [
-            'content-type: application/json',
-            'x-api-key: ' . $key,
-            'anthropic-version: 2023-06-01',
-        ],
-        CURLOPT_POSTFIELDS => json_encode([
-            'model' => $model,
-            'max_tokens' => 3000,
-            'system' => $system,
-            'messages' => [['role' => 'user', 'content' => $userMsg]],
-        ]),
-    ]);
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($resp === false || $code >= 300) return null;
-
-    $content = json_decode((string)$resp, true)['content'][0]['text'] ?? '';
+    $content = (string)ai_complete($system, $userMsg);
+    if ($content === '') return null;
+    // Strip markdown fences some models wrap JSON in, then grab the JSON object.
+    $content = preg_replace('/^```(?:json)?|```$/m', '', $content) ?? $content;
     if (preg_match('/\{.*\}/s', $content, $m)) $content = $m[0];
     $out = json_decode($content, true);
     if (!is_array($out) || empty($out['cover_letter'])) return null;

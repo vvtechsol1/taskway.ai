@@ -4,7 +4,10 @@ $ACTIVE = 'upwork';
 $PAGE_TITLE = 'Upwork Proposal';
 $PAGE_SUB = 'Paste the job — get a tailored proposal with your live projects';
 
-$engine = (setting('ai_provider') === 'claude' && trim((string)setting('claude_api_key')) !== '') ? 'Claude AI' : 'Smart offline';
+$aiProv = setting('ai_provider', 'local');
+$aiHasKey = trim((string)setting('ai_api_key')) !== '' || trim((string)setting('claude_api_key')) !== '';
+$engine = (in_array($aiProv, ['claude', 'groq', 'gemini'], true) && $aiHasKey)
+    ? ucfirst($aiProv) . ' AI' : 'Smart offline';
 $projCount = 0;
 $stmt = db()->prepare("SELECT COUNT(*) FROM projects WHERE user_id = ? AND deleted_at IS NULL AND in_portfolio = 1");
 $stmt->execute([current_user_id()]);
@@ -121,9 +124,9 @@ require __DIR__ . '/../partials/header.php';
     </div>
     <div class="card card-pad" style="background:var(--primary-soft);border:0">
       <strong>💡 Best results</strong>
-      <p class="small dim mt-2" style="margin:0"><?= $engine === 'Claude AI'
-        ? 'Claude AI on hai — har job ke liye fresh, tailored letter milega.'
-        : 'Aur bhi tailored letters ke liye <a href="' . page_url('settings') . '" style="color:var(--primary);font-weight:700">Settings → Brain Dump AI</a> mein Claude API key laga dein. Abhi smart offline engine chal raha hai.' ?></p>
+      <p class="small dim mt-2" style="margin:0"><?= $engine !== 'Smart offline'
+        ? esc($engine) . ' on hai — har job ke liye fresh, tailored letter milega.'
+        : 'Har job ke liye alag, tailored AI letter chahiye? <a href="' . page_url('settings') . '" style="color:var(--primary);font-weight:700">Settings → Brain Dump AI</a> mein <strong>Groq ki FREE key</strong> laga dein (console.groq.com — koi card nahi). Abhi offline template engine chal raha hai.' ?></p>
     </div>
   </div>
 </div>
@@ -220,7 +223,7 @@ require __DIR__ . '/../partials/header.php';
     try {
       var r = await TW.api('upwork_proposal', f);
       renderResult(r);
-      TW.toast('Proposal ready (' + (r.engine === 'claude' ? 'Claude AI' : 'offline engine') + ') ✓');
+      TW.toast('Proposal ready (' + (r.engine === 'local' ? 'offline engine' : r.engine + ' AI') + ') ✓');
     } catch (e) { TW.toast(e.message, 'err'); }
     finally { btn.disabled = false; btn.textContent = '✨ Generate now'; }
   });

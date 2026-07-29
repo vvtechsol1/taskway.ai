@@ -43,11 +43,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($form === 'ai' && is_super_admin()) {
-        set_setting('ai_provider', ($_POST['ai_provider'] ?? 'local') === 'claude' ? 'claude' : 'local');
-        if (trim((string)($_POST['claude_api_key'] ?? '')) !== '') {
-            set_setting('claude_api_key', trim((string)$_POST['claude_api_key']));
+        $prov = in_array($_POST['ai_provider'] ?? '', ['local', 'claude', 'groq', 'gemini'], true) ? $_POST['ai_provider'] : 'local';
+        set_setting('ai_provider', $prov);
+        if (trim((string)($_POST['ai_api_key'] ?? '')) !== '') {
+            set_setting('ai_api_key', trim((string)$_POST['ai_api_key']));
+            if ($prov === 'claude') set_setting('claude_api_key', trim((string)$_POST['ai_api_key']));   // brain-dump parser bhi use kare
         }
-        set_setting('claude_model', trim((string)($_POST['claude_model'] ?? 'claude-sonnet-5')) ?: 'claude-sonnet-5');
+        set_setting('ai_model', trim((string)($_POST['ai_model'] ?? '')));
         set_setting('allow_signup', isset($_POST['allow_signup']) ? '1' : '0');
         redirect(page_url('settings', ['saved' => 1]));
     }
@@ -137,12 +139,15 @@ require __DIR__ . '/../partials/header.php';
       <div class="field">
         <label class="fld">Engine</label>
         <div class="row wrap" style="gap:10px">
-          <label class="chip <?= setting('ai_provider') !== 'claude' ? 'active' : '' ?>"><input type="radio" name="ai_provider" value="local" <?= setting('ai_provider') !== 'claude' ? 'checked' : '' ?> style="display:none" onchange="this.closest('form').querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.parentElement.classList.add('active')">⚡ Smart parser (offline, free)</label>
-          <label class="chip <?= setting('ai_provider') === 'claude' ? 'active' : '' ?>"><input type="radio" name="ai_provider" value="claude" <?= setting('ai_provider') === 'claude' ? 'checked' : '' ?> style="display:none" onchange="this.closest('form').querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.parentElement.classList.add('active')">✨ Claude AI (smarter)</label>
+          <?php $curProv = setting('ai_provider', 'local'); ?>
+          <?php foreach (['local' => '⚡ Offline (free, template)', 'groq' => '🚀 Groq (FREE key!)', 'gemini' => '🔷 Google Gemini (FREE key)', 'claude' => '✨ Claude AI (paid)'] as $pv => $pl): ?>
+            <label class="chip <?= $curProv === $pv ? 'active' : '' ?>"><input type="radio" name="ai_provider" value="<?= $pv ?>" <?= $curProv === $pv ? 'checked' : '' ?> style="display:none" onchange="this.closest('form').querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.parentElement.classList.add('active')"><?= $pl ?></label>
+          <?php endforeach; ?>
         </div>
       </div>
-      <div class="field"><label class="fld">Claude API key</label><input class="input" type="password" name="claude_api_key" placeholder="<?= trim((string)setting('claude_api_key')) !== '' ? '•••••••• (saved — blank to keep)' : 'sk-ant-...' ?>"><div class="help">Stored in your database. Get one at console.anthropic.com. If blank/invalid, Taskway uses the offline parser.</div></div>
-      <div class="field"><label class="fld">Claude model</label><input class="input" name="claude_model" value="<?= esc(setting('claude_model', 'claude-sonnet-5')) ?>"></div>
+      <div class="field"><label class="fld">API key</label><input class="input" type="password" name="ai_api_key" placeholder="<?= (trim((string)setting('ai_api_key')) !== '' || trim((string)setting('claude_api_key')) !== '') ? '•••••••• (saved — blank to keep)' : 'apni key paste karein' ?>">
+        <div class="help">🚀 <strong>Groq FREE key:</strong> console.groq.com → API Keys (koi card nahi) · 🔷 <strong>Gemini FREE key:</strong> aistudio.google.com/apikey · ✨ Claude: console.anthropic.com (paid). Key aap ke database mein rehti hai; na ho to offline engine chalta hai.</div></div>
+      <div class="field"><label class="fld">Model <span class="muted">(optional — khali chhoro to best default)</span></label><input class="input" name="ai_model" value="<?= esc(setting('ai_model', '')) ?>" placeholder="groq: llama-3.3-70b-versatile · gemini: gemini-2.0-flash · claude: claude-sonnet-5"></div>
       <label class="row" style="gap:10px;cursor:pointer;margin-top:8px"><input type="checkbox" name="allow_signup" <?= setting('allow_signup') === '1' ? 'checked' : '' ?> style="width:18px;height:18px;accent-color:var(--primary)"> <span>Allow new people to self-register (sign up)</span></label>
       <button class="btn btn-primary mt-4">Save AI settings</button>
     </form>
