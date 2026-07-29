@@ -283,6 +283,26 @@ try {
             json_response(['ok' => false, 'error' => 'Nothing to do.'], 400);
 
         /* ---- Upwork proposal generator --------------------------- */
+        case 'upwork_prompt': {
+            // Browser-side AI: the host blocks outbound calls, so the browser talks to the provider directly.
+            require_once __DIR__ . '/proposal.php';
+            $job = trim((string)($in['job'] ?? ''));
+            if (mb_strlen($job) < 40) json_response(['ok' => false, 'error' => 'Job post paste karein (thoda detail chahiye).'], 400);
+            $prov = ai_active_provider();
+            $extras = ['reference_links' => extract_reference_links($job), 'job_techs' => upwork_job_tech_names($job)];
+            if ($prov === 'local') json_response(['ok' => true, 'provider' => 'local'] + $extras);
+            $me = current_user();
+            $stmt = db()->prepare("SELECT name, description, technologies, website_url, status FROM projects
+                WHERE user_id = ? AND deleted_at IS NULL AND in_portfolio = 1 ORDER BY position, name");
+            $stmt->execute([current_user_id()]);
+            $projects = $stmt->fetchAll();
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $portfolioUrl = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . url('p.php') . '?u=' . ($me['portfolio_token'] ?? '');
+            $pp = upwork_build_prompt($job, trim((string)($in['budget'] ?? '')), trim((string)($in['notes'] ?? '')), $me, $projects, $portfolioUrl);
+            json_response(['ok' => true, 'provider' => $prov, 'key' => ai_api_key(), 'model' => ai_resolved_model($prov),
+                'system' => $pp['system'], 'user' => $pp['user']] + $extras);
+        }
+
         case 'upwork_proposal':
             require_once __DIR__ . '/proposal.php';
             $job = trim((string)($in['job'] ?? ''));

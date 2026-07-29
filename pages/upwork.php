@@ -216,14 +216,60 @@ require __DIR__ . '/../partials/header.php';
     };
   }
 
+  function parseAIJson(text) {
+    text = String(text || '').replace(/```json|```/g, '');
+    var m = text.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error('AI response format issue');
+    return JSON.parse(m[0]);
+  }
+  async function callBrowserAI(p) {
+    var url, opts;
+    if (p.provider === 'groq') {
+      url = 'https://api.groq.com/openai/v1/chat/completions';
+      opts = { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + p.key },
+        body: JSON.stringify({ model: p.model, max_tokens: 3000, temperature: 0.7,
+          messages: [{ role: 'system', content: p.system }, { role: 'user', content: p.user }] }) };
+    } else if (p.provider === 'gemini') {
+      url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(p.model) + ':generateContent?key=' + encodeURIComponent(p.key);
+      opts = { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ system_instruction: { parts: [{ text: p.system }] }, contents: [{ parts: [{ text: p.user }] }],
+          generationConfig: { maxOutputTokens: 3000 } }) };
+    } else { // claude
+      url = 'https://api.anthropic.com/v1/messages';
+      opts = { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-api-key': p.key,
+          'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: p.model, max_tokens: 3000, system: p.system,
+          messages: [{ role: 'user', content: p.user }] }) };
+    }
+    var res = await fetch(url, opts);
+    if (!res.ok) throw new Error(p.provider + ' HTTP ' + res.status);
+    var j = await res.json();
+    var text = p.provider === 'groq' ? (j.choices && j.choices[0].message.content)
+      : p.provider === 'gemini' ? (j.candidates && j.candidates[0].content.parts[0].text)
+      : (j.content && j.content[0].text);
+    var out = parseAIJson(text);
+    if (!out.cover_letter) throw new Error('Incomplete AI result');
+    return out;
+  }
+
   btn.addEventListener('click', async function () {
     var f = fields();
     if (f.job.length < 40) { TW.toast('Pehle job post paste karein', 'info'); return; }
     btn.disabled = true; btn.textContent = '✨ Likh raha hoon…';
     try {
-      var r = await TW.api('upwork_proposal', f);
-      renderResult(r);
-      TW.toast('Proposal ready (' + (r.engine === 'local' ? 'offline engine' : r.engine + ' AI') + ') ✓');
+      var p = await TW.api('upwork_prompt', f);
+      if (p.provider && p.provider !== 'local') {
+        try {
+          var r = await callBrowserAI(p);
+          r.reference_links = p.reference_links; r.job_techs = p.job_techs;
+          renderResult(r);
+          TW.toast('Proposal ready (' + p.provider + ' AI) ✓');
+          return;
+        } catch (aiErr) { TW.toast(p.provider + ' issue (' + aiErr.message + ') — offline engine use ho raha', 'info'); }
+      }
+      var r2 = await TW.api('upwork_proposal', f);
+      renderResult(r2);
+      TW.toast('Proposal ready (' + (r2.engine === 'local' ? 'offline engine' : r2.engine + ' AI') + ') ✓');
     } catch (e) { TW.toast(e.message, 'err'); }
     finally { btn.disabled = false; btn.textContent = '✨ Generate now'; }
   });

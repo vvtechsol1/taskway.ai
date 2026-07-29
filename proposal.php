@@ -85,14 +85,21 @@ function ai_default_model(string $provider): string
     return ['claude' => 'claude-sonnet-5', 'groq' => 'llama-3.3-70b-versatile', 'gemini' => 'gemini-2.0-flash'][$provider] ?? '';
 }
 
+/** The model that will actually be used for the given provider. */
+function ai_resolved_model(string $provider): string
+{
+    $model = trim((string)setting('ai_model')) ?: (trim((string)setting('claude_model')) ?: '');
+    if ($model === '' || ($provider !== 'claude' && str_starts_with($model, 'claude'))) $model = ai_default_model($provider);
+    return $model;
+}
+
 /** Send system+user to the active provider; returns raw text or null on any failure. */
 function ai_complete(string $system, string $userMsg): ?string
 {
     $provider = ai_active_provider();
     if ($provider === 'local') return null;
     $key = ai_api_key();
-    $model = trim((string)setting('ai_model')) ?: (trim((string)setting('claude_model')) ?: '');
-    if ($model === '' || ($provider !== 'claude' && str_starts_with($model, 'claude'))) $model = ai_default_model($provider);
+    $model = ai_resolved_model($provider);
 
     if ($provider === 'claude') {
         $url = 'https://api.anthropic.com/v1/messages';
@@ -131,7 +138,8 @@ function ai_complete(string $system, string $userMsg): ?string
 /* Claude engine                                                       */
 /* ------------------------------------------------------------------ */
 
-function upwork_claude(string $job, string $budget, string $notes, array $me, array $projects, string $portfolioUrl): ?array
+/** Build the exact system+user prompt used by every AI provider (server or browser side). */
+function upwork_build_prompt(string $job, string $budget, string $notes, array $me, array $projects, string $portfolioUrl): array
 {
     $plist = array_map(fn($p) => [
         'name' => $p['name'],
@@ -173,7 +181,13 @@ function upwork_claude(string $job, string $budget, string $notes, array $me, ar
         . "\n\nMY REAL PROJECTS (JSON):\n" . json_encode($plist, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
         . "\n\nJOB POST:\n" . $job;
 
-    $content = (string)ai_complete($system, $userMsg);
+    return ['system' => $system, 'user' => $userMsg];
+}
+
+function upwork_claude(string $job, string $budget, string $notes, array $me, array $projects, string $portfolioUrl): ?array
+{
+    $pp = upwork_build_prompt($job, $budget, $notes, $me, $projects, $portfolioUrl);
+    $content = (string)ai_complete($pp['system'], $pp['user']);
     if ($content === '') return null;
     // Strip markdown fences some models wrap JSON in, then grab the JSON object.
     $content = preg_replace('/^```(?:json)?|```$/m', '', $content) ?? $content;
