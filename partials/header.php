@@ -32,11 +32,16 @@ $navTasksSub = [
 $navAfter = [
     ['projects',  '📁', 'Projects',  $navActiveProjects ?: null],
     ['attendance','🕐', 'Attendance', null],
-    ['portfolio', '💼', 'Portfolio', null],
-    ['upwork',    '📝', 'Upwork Proposal', null],
+];
+$navUpworkSub = [
+    ['portfolio', '💼', 'Portfolio'],
+    ['upwork',    '📝', 'Upwork Proposal'],
+];
+$navEnd = [
     ['messages',  '💬', 'Messages',  $unread ?: null],
 ];
 $tasksGroupActive = in_array($ACTIVE, ['tasks', 'braindump', 'board'], true);
+$upworkGroupActive = in_array($ACTIVE, ['portfolio', 'upwork'], true);
 ?>
 <!doctype html>
 <html lang="en" data-theme="<?= esc($theme === 'auto' ? '' : $theme) ?>">
@@ -83,6 +88,28 @@ $tasksGroupActive = in_array($ACTIVE, ['tasks', 'braindump', 'board'], true);
       </div>
 
       <?php foreach ($navAfter as [$key, $ic, $label, $badge]): ?>
+        <a href="<?= page_url($key) ?>" class="nav-item <?= $ACTIVE === $key ? 'active' : '' ?>">
+          <span class="ic"><?= $ic ?></span><?= esc($label) ?>
+          <?php if ($badge): ?><span class="nav-badge"><?= (int)$badge ?></span><?php endif; ?>
+        </a>
+      <?php endforeach; ?>
+
+      <!-- Upwork group: Portfolio + Upwork Proposal -->
+      <div class="nav-group <?= $upworkGroupActive ? 'open' : '' ?>" id="navUpworkGroup">
+        <a href="#" class="nav-item" data-nav-toggle="navUpworkGroup">
+          <span class="ic">🧑‍💼</span>Upwork
+          <button type="button" class="nav-caret" data-nav-caret="navUpworkGroup" aria-label="Toggle submenu">▾</button>
+        </a>
+        <div class="nav-sub">
+          <?php foreach ($navUpworkSub as [$key, $ic, $label]): ?>
+            <a href="<?= page_url($key) ?>" class="nav-item <?= $ACTIVE === $key ? 'active' : '' ?>">
+              <span class="ic"><?= $ic ?></span><?= esc($label) ?>
+            </a>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <?php foreach ($navEnd as [$key, $ic, $label, $badge]): ?>
         <a href="<?= page_url($key) ?>" class="nav-item <?= $ACTIVE === $key ? 'active' : '' ?>">
           <span class="ic"><?= $ic ?></span><?= esc($label) ?>
           <?php if ($key === 'messages'): ?>

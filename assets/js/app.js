@@ -182,11 +182,13 @@
     const closeM = e.target.closest('[data-close-modal]');
     if (closeM) { const back = closeM.closest('.modal-back'); if (back) back.classList.remove('open'); }
 
-    // Sidebar nav-group caret (Tasks submenu) — remembers state
+    // Sidebar nav-group caret / parent toggle — remembers state
     const caret = e.target.closest('[data-nav-caret]');
-    if (caret) {
+    const ngToggle = caret || e.target.closest('[data-nav-toggle]');
+    if (ngToggle) {
       e.preventDefault(); e.stopPropagation();
-      const g = document.getElementById(caret.getAttribute('data-nav-caret'));
+      const gid = ngToggle.getAttribute('data-nav-caret') || ngToggle.getAttribute('data-nav-toggle');
+      const g = document.getElementById(gid);
       if (g) { g.classList.toggle('open'); localStorage.setItem('tw-' + g.id, g.classList.contains('open') ? '1' : '0'); }
       return;
     }
