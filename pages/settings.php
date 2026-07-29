@@ -42,6 +42,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(page_url('settings', ['saved' => 1]));
     }
 
+    if ($form === 'upwork_profile') {
+        db()->prepare('UPDATE users SET uw_title = ?, uw_overview = ?, uw_skills = ?, uw_years = ? WHERE id = ?')
+            ->execute([
+                mb_substr(trim((string)($_POST['uw_title'] ?? '')), 0, 120),
+                mb_substr(trim((string)($_POST['uw_overview'] ?? '')), 0, 2000),
+                mb_substr(trim((string)($_POST['uw_skills'] ?? '')), 0, 300),
+                mb_substr(trim((string)($_POST['uw_years'] ?? '')), 0, 10),
+                current_user_id(),
+            ]);
+        redirect(page_url('settings', ['saved' => 1]));
+    }
+
     if ($form === 'ai' && is_super_admin()) {
         $prov = in_array($_POST['ai_provider'] ?? '', ['local', 'claude', 'groq', 'gemini'], true) ? $_POST['ai_provider'] : 'local';
         set_setting('ai_provider', $prov);
@@ -99,6 +111,26 @@ require __DIR__ . '/../partials/header.php';
         </div>
       </div>
       <button class="btn btn-primary mt-4">Save profile</button>
+    </form>
+  </div>
+
+  <!-- Upwork profile (fuels proposals) -->
+  <div class="card card-pad mb-6 animate d1">
+    <div class="card-head"><h3>🧑‍💼 Upwork Profile</h3><span class="badge in_progress"><span class="dot"></span>Proposals ka fuel</span></div>
+    <p class="small muted" style="margin:0 0 14px">Ye info proposals ki opening banati hai — jitni asli aur strong, utna behtar letter. Apne Upwork profile se copy karein.</p>
+    <form method="post" action="<?= page_url('settings') ?>">
+      <input type="hidden" name="form" value="upwork_profile">
+      <div class="row wrap" style="gap:16px">
+        <div class="field grow" style="min-width:220px"><label class="fld">Professional title</label>
+          <input class="input" name="uw_title" value="<?= esc($me['uw_title'] ?? '') ?>" placeholder="e.g. Senior Full-Stack Developer | React · Node · AI"></div>
+        <div class="field" style="flex:0 0 140px"><label class="fld">Experience (years)</label>
+          <input class="input" name="uw_years" value="<?= esc($me['uw_years'] ?? '') ?>" placeholder="6"></div>
+      </div>
+      <div class="field"><label class="fld">Top skills <span class="muted">(comma se)</span></label>
+        <input class="input" name="uw_skills" value="<?= esc($me['uw_skills'] ?? '') ?>" placeholder="React, Next.js, Node.js, TypeScript, PHP, AI integrations"></div>
+      <div class="field"><label class="fld">Profile overview / description</label>
+        <textarea class="textarea" name="uw_overview" style="min-height:110px" placeholder="Wohi overview jo aap ke Upwork profile par hai — kaun hain, kya banate hain, kis cheez mein best hain…"><?= esc($me['uw_overview'] ?? '') ?></textarea></div>
+      <button class="btn btn-primary mt-2">Save Upwork profile</button>
     </form>
   </div>
 

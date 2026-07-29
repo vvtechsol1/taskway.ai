@@ -187,7 +187,7 @@ function upwork_build_prompt(string $job, string $budget, string $notes, array $
         . "COVER LETTER RULES (follow ALL):\n"
         . "1) SHORT: 90-130 words MAX. Busy clients skim on phones. No filler, no throat-clearing.\n"
         . "2) HUMAN, NOT AI: write like a busy senior freelancer typing a quick, confident message — contractions (I'll, you'll, that's), varied sentence lengths, no AI-sounding phrases ('I'm excited', 'I'd love to', 'exactly how I work', 'passionate', perfectly parallel bullets). One tiny imperfection of rhythm is fine.\n"
-        . "3) HOOK (1-2 lines): name their real problem or fear in their own words — never a greeting or self-intro.\n"
+        . "3) OPENING (1-2 lines): PROFILE-ANCHORED CONFIDENCE — connect the developer's profile (title/experience/strongest relevant skill from DEVELOPER PROFILE below) directly to THIS job, in a calm, reassuring tone that makes the client relax: this is routine, well-practiced work for him (e.g. 'Cross-browser extensions in TypeScript are regular work for me — your feature list is familiar territory, nothing here is experimental.'). NEVER lecture about their problems/risks in the opening, never greetings, never resume-dumps. The client should finish line 2 feeling 'this person can clearly handle it'.\n"
         . "4) 'What you'll get:' — 3 concrete deliverable bullets tailored to THIS job (outcomes, not skills: 'a survey your visitors actually finish', not 'React experience'). This is where skills show, framed as what WE deliver to THEM.\n"
         . "5) Proof: MAX 2 live links of genuinely matching projects + the portfolio link, each with 3-5 words of context.\n"
         . "6) CLOSING MOVE (last 1-2 lines): drive toward hire with an assumptive, low-friction next step anchored in time — e.g. 'Send me the designs and you'll have a concrete plan + timeline within 24 hours.' Make replying feel like the obvious easy step. Never 'hope to hear from you'.\n"
@@ -197,7 +197,17 @@ function upwork_build_prompt(string $job, string $budget, string $notes, array $
         . "BILLING: recommend fixed for small/clear scope, milestones for medium-large scope, hourly for vague/ongoing work. MILESTONE COUNT MUST MATCH THE BUDGET AND SCOPE — think like the client (every milestone adds funding/approval friction): under ~\$300 use MAX 2 milestones; \$300-1000 use 2-3; only \$1000+/complex projects deserve 4-5. Never micro-milestones under ~\$50 — each must be a meaningful deliverable the client can see/test. Milestone 1 modest (a plan + something working) to lower their risk; dates start a few days after today, realistically spaced; prices sum to ~the budget. reason = 2-3 sentences.\n"
         . "QUESTIONS: 2-3 smart, specific clarifying questions about their project.";
 
+    $profileBits = array_filter([
+        'Title' => trim((string)($me['uw_title'] ?? '')),
+        'Experience' => trim((string)($me['uw_years'] ?? '')) !== '' ? $me['uw_years'] . '+ years' : '',
+        'Top skills' => trim((string)($me['uw_skills'] ?? '')),
+        'Overview' => mb_substr(trim((string)($me['uw_overview'] ?? '')), 0, 600),
+    ]);
+    $profileTxt = '';
+    foreach ($profileBits as $k => $v) $profileTxt .= "$k: $v\n";
+
     $userMsg = "TODAY: " . date('Y-m-d') . "\nDEVELOPER: " . ($me['name'] ?: $me['username'])
+        . ($profileTxt !== '' ? "\nDEVELOPER PROFILE (use for the confident opening):\n" . $profileTxt : '')
         . "\nPORTFOLIO URL: $portfolioUrl"
         . "\nBUDGET GIVEN BY ME: " . ($budget !== '' ? $budget : '(none — estimate sensibly)')
         . ($notes !== '' ? "\nMY NOTES: $notes" : '')
@@ -314,18 +324,17 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
     $main = array_slice($coreOrder, 0, 3);
     $stackPhrase = $main ? implode(' + ', array_map(fn($k) => $pretty[$k] ?? $k, $main)) : 'this stack';
 
-    // 3-second hook: diagnose a likely core problem for this kind of job (no greeting, no resume).
-    $hooks = [
-        'react'     => "A React app like this usually lives or dies on component architecture — get state management wrong early and every feature after gets slower to ship.",
-        'node'      => "The risky part of this build isn't the UI — it's the API layer: unhandled edge cases there become production bugs later.",
-        'wordpress' => "Most WordPress projects go over budget on plugin conflicts, not features — starting with a clean audit avoids that.",
-        'ai'        => "The hard part of an AI feature is rarely the model — it's guardrails and latency; that's where this project will be won or lost.",
-        'api'       => "Integrations look simple in the job post and eat 60% of the timeline in practice — mapping the API contracts first keeps this on schedule.",
-        'shopify'   => "Theme-level hacks are why most store builds break at scale — this needs clean, upgrade-safe customization from day one.",
-        'php'       => "Legacy PHP work goes smoothly only if you review before you rewrite — most 'quick fixes' break hidden dependencies.",
-    ];
-    $hook = "Scoping this right in week one is what will keep this project on budget — most builds like this slip because the architecture isn't pinned down first.";
-    foreach ($hooks as $k => $h) { if (mb_strpos($jobL, $k) !== false) { $hook = $h; break; } }
+    // Profile-anchored confident opening: relate WHO the developer is to THIS job — calm,
+    // reassuring, "this is routine work for me". No problem-lectures, no greetings.
+    $uwTitle = trim((string)($me['uw_title'] ?? ''));
+    $uwYears = trim((string)($me['uw_years'] ?? ''));
+    $roleBit = $uwTitle !== '' ? $uwTitle : 'full-stack developer';
+    $yearsBit = $uwYears !== '' ? " with {$uwYears}+ years shipping production work" : '';
+    if ($stackPhrase !== 'this stack') {
+        $hook = "As a {$roleBit}{$yearsBit}, {$stackPhrase} projects like this are my regular work — your scope reads clear, and nothing in it is experimental for me.";
+    } else {
+        $hook = "As a {$roleBit}{$yearsBit}, builds like this are familiar territory for me — your scope reads clear and very doable.";
+    }
 
     // Deliverable bullets tailored to the job's detected requirements ("what you'll get", not "my skills").
     $deliverMap = [

@@ -29,7 +29,9 @@ if (str_starts_with($action, 'bridge_')) {
             $jobs[] = [
                 'id' => (int)$r['id'],
                 'job' => $r['job'], 'budget' => $r['budget'], 'notes' => $r['notes'],
-                'user' => ['name' => $u['name'] ?? '', 'username' => $u['username'] ?? ''],
+                'user' => ['name' => $u['name'] ?? '', 'username' => $u['username'] ?? '',
+                    'uw_title' => $u['uw_title'] ?? '', 'uw_years' => $u['uw_years'] ?? '',
+                    'uw_skills' => $u['uw_skills'] ?? '', 'uw_overview' => mb_substr((string)($u['uw_overview'] ?? ''), 0, 600)],
                 'projects' => $ps->fetchAll(),
                 'portfolio_url' => $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? '') . url('p.php') . '?u=' . ($u['portfolio_token'] ?? ''),
             ];
