@@ -85,6 +85,29 @@ function ai_default_model(string $provider): string
     return ['claude' => 'claude-sonnet-5', 'groq' => 'llama-3.3-70b-versatile', 'gemini' => 'gemini-2.0-flash'][$provider] ?? '';
 }
 
+/** Escape raw newlines/tabs inside JSON strings (some models emit invalid JSON). */
+function ai_repair_json(string $s): string
+{
+    $out = ''; $inStr = false; $esc = false;
+    $len = strlen($s);
+    for ($i = 0; $i < $len; $i++) {
+        $ch = $s[$i];
+        if ($inStr) {
+            if ($esc) { $out .= $ch; $esc = false; continue; }
+            if ($ch === '\\') { $out .= $ch; $esc = true; continue; }
+            if ($ch === '"') { $inStr = false; $out .= $ch; continue; }
+            if ($ch === "\n") { $out .= '\\n'; continue; }
+            if ($ch === "\r") { continue; }
+            if ($ch === "\t") { $out .= '\\t'; continue; }
+            $out .= $ch;
+        } else {
+            if ($ch === '"') $inStr = true;
+            $out .= $ch;
+        }
+    }
+    return $out;
+}
+
 /** The model that will actually be used for the given provider. */
 function ai_resolved_model(string $provider): string
 {
@@ -193,6 +216,7 @@ function upwork_claude(string $job, string $budget, string $notes, array $me, ar
     $content = preg_replace('/^```(?:json)?|```$/m', '', $content) ?? $content;
     if (preg_match('/\{.*\}/s', $content, $m)) $content = $m[0];
     $out = json_decode($content, true);
+    if (!is_array($out)) $out = json_decode(ai_repair_json($content), true);
     if (!is_array($out) || empty($out['cover_letter'])) return null;
     return $out;
 }

@@ -216,11 +216,32 @@ require __DIR__ . '/../partials/header.php';
     };
   }
 
+  function repairJson(s) {
+    // Some models emit raw newlines inside JSON strings — escape them.
+    var out = '', inStr = false, esc = false;
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i];
+      if (inStr) {
+        if (esc) { out += ch; esc = false; continue; }
+        if (ch === '\\') { out += ch; esc = true; continue; }
+        if (ch === '"') { inStr = false; out += ch; continue; }
+        if (ch === '\n') { out += '\\n'; continue; }
+        if (ch === '\r') { continue; }
+        if (ch === '\t') { out += '\\t'; continue; }
+        out += ch;
+      } else {
+        if (ch === '"') inStr = true;
+        out += ch;
+      }
+    }
+    return out;
+  }
   function parseAIJson(text) {
     text = String(text || '').replace(/```json|```/g, '');
     var m = text.match(/\{[\s\S]*\}/);
     if (!m) throw new Error('AI response format issue');
-    return JSON.parse(m[0]);
+    try { return JSON.parse(m[0]); }
+    catch (e) { return JSON.parse(repairJson(m[0])); }
   }
   async function callBrowserAI(p) {
     var url, opts;
