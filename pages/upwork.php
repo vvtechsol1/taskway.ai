@@ -248,7 +248,7 @@ require __DIR__ . '/../partials/header.php';
     if (p.provider === 'groq') {
       url = 'https://api.groq.com/openai/v1/chat/completions';
       opts = { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + p.key },
-        body: JSON.stringify({ model: p.model, max_tokens: 3000, temperature: 0.7,
+        body: JSON.stringify({ model: p.model, max_tokens: 3000, temperature: 0.4,
           messages: [{ role: 'system', content: p.system }, { role: 'user', content: p.user }] }) };
     } else if (p.provider === 'gemini') {
       url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(p.model) + ':generateContent?key=' + encodeURIComponent(p.key);
@@ -310,6 +310,7 @@ require __DIR__ . '/../partials/header.php';
     finally { qbtn.disabled = false; }
   });
 
+  var uqLastStatus = {};
   var stBadge = { pending: '<span class="badge"><span class="dot"></span>Waiting</span>',
                   processing: '<span class="badge in_progress"><span class="dot"></span>Claude likh raha hai…</span>',
                   done: '<span class="badge done">✓ Ready</span>',
@@ -322,6 +323,13 @@ require __DIR__ . '/../partials/header.php';
       if (!r.items.length) { box.innerHTML = '<span class="muted">Abhi kuch queue mein nahi — "🤖 Send to Claude" try karein.</span>'; return; }
       box.innerHTML = '';
       r.items.forEach(function (it) {
+        // Ready hote hi khud khul jaye — koi manual refresh nahi.
+        var prev = uqLastStatus[it.id];
+        uqLastStatus[it.id] = it.status;
+        if (it.status === 'done' && (prev === 'pending' || prev === 'processing')) {
+          TW.toast('🤖 Claude ka proposal ready — khol raha hoon…');
+          uqOpen(it.id);
+        }
         var d = document.createElement('div');
         d.className = 'row between wrap';
         d.style.cssText = 'gap:10px;padding:11px 4px;border-bottom:1px solid var(--border)';

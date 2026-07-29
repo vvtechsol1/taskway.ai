@@ -133,7 +133,7 @@ function ai_complete(string $system, string $userMsg): ?string
     } elseif ($provider === 'groq') {
         $url = 'https://api.groq.com/openai/v1/chat/completions';
         $headers = ['content-type: application/json', 'Authorization: Bearer ' . $key];
-        $payload = ['model' => $model, 'max_tokens' => 3000, 'temperature' => 0.7,
+        $payload = ['model' => $model, 'max_tokens' => 3000, 'temperature' => 0.4,
             'messages' => [['role' => 'system', 'content' => $system], ['role' => 'user', 'content' => $userMsg]]];
         $path = fn($d) => $d['choices'][0]['message']['content'] ?? null;
     } else { // gemini
@@ -193,7 +193,9 @@ function upwork_build_prompt(string $job, string $budget, string $notes, array $
         . "6) CLOSING MOVE (last 1-2 lines): drive toward hire with an assumptive, low-friction next step anchored in time — e.g. 'Send me the designs and you'll have a concrete plan + timeline within 24 hours.' Make replying feel like the obvious easy step. Never 'hope to hear from you'.\n"
         . "7) NO-MATCH JOBS: never mention lack of experience or 'first time' — present closest work as recent shipped work; sell the plan (no fake specific claims).\n"
         . "8) Polish: em dashes (—), expand abbreviations first mention, plain text only. If the client's post demands a specific application format, THEIR format wins over all of this.\n"
-        . "Sign with the developer's first name.\n"
+        . "9) EXACT OUTPUT SKELETON for cover_letter (use REAL newline characters, keep this professional sequence, 110-135 words total — NEVER under 100):\n"
+        . "[Opening: 2 sentences anchored in the DEVELOPER PROFILE — who he is + why this job is routine for him]\n[blank line]\nWhat you'll get:\n• [outcome bullet 1]\n• [outcome bullet 2]\n• [outcome bullet 3]\n[blank line]\nRecent work (live):\n• [url 1] — [4-6 word context]\n• [url 2] — [4-6 word context]\n• More: [portfolio url]\n[blank line]\n[Closing move: assumptive, time-anchored]\n[blank line]\n— [First name]\n"
+        . "Sign with the developer's first name (from uw_name if present).\n"
         . "BILLING: recommend fixed for small/clear scope, milestones for medium-large scope, hourly for vague/ongoing work. MILESTONE COUNT MUST MATCH THE BUDGET AND SCOPE — think like the client (every milestone adds funding/approval friction): under ~\$300 use MAX 2 milestones; \$300-1000 use 2-3; only \$1000+/complex projects deserve 4-5. Never micro-milestones under ~\$50 — each must be a meaningful deliverable the client can see/test. Milestone 1 modest (a plan + something working) to lower their risk; dates start a few days after today, realistically spaced; prices sum to ~the budget. reason = 2-3 sentences.\n"
         . "QUESTIONS: 2-3 smart, specific clarifying questions about their project.";
 
