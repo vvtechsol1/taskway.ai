@@ -213,7 +213,7 @@ function db_migrate_users(PDO $pdo): void
 
     // Upwork profile fields (fuel proposals with the developer's real identity).
     $ucols = $pdo->query("PRAGMA table_info(users)")->fetchAll(PDO::FETCH_COLUMN, 1);
-    foreach (['uw_title', 'uw_overview', 'uw_skills', 'uw_years'] as $col) {
+    foreach (['uw_name', 'uw_title', 'uw_overview', 'uw_skills', 'uw_years'] as $col) {
         if (!in_array($col, $ucols, true)) $pdo->exec("ALTER TABLE users ADD COLUMN $col TEXT DEFAULT ''");
     }
 

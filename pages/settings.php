@@ -43,8 +43,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($form === 'upwork_profile') {
-        db()->prepare('UPDATE users SET uw_title = ?, uw_overview = ?, uw_skills = ?, uw_years = ? WHERE id = ?')
+        db()->prepare('UPDATE users SET uw_name = ?, uw_title = ?, uw_overview = ?, uw_skills = ?, uw_years = ? WHERE id = ?')
             ->execute([
+                mb_substr(trim((string)($_POST['uw_name'] ?? '')), 0, 80),
                 mb_substr(trim((string)($_POST['uw_title'] ?? '')), 0, 120),
                 mb_substr(trim((string)($_POST['uw_overview'] ?? '')), 0, 2000),
                 mb_substr(trim((string)($_POST['uw_skills'] ?? '')), 0, 300),
@@ -88,9 +89,10 @@ require __DIR__ . '/../partials/header.php';
   <div class="badge blocked" style="padding:10px 16px;margin-bottom:18px"><?= esc($error) ?></div>
 <?php endif; ?>
 
-<div style="max-width:760px">
+<div style="max-width:1240px">
+  <div class="grid cols-2 mb-6" style="align-items:start">
   <!-- Profile -->
-  <div class="card card-pad mb-6 animate">
+  <div class="card card-pad animate">
     <div class="card-head"><h3>👤 Profile</h3></div>
     <form method="post" action="<?= page_url('settings') ?>">
       <input type="hidden" name="form" value="profile">
@@ -114,25 +116,28 @@ require __DIR__ . '/../partials/header.php';
     </form>
   </div>
 
-  <!-- Upwork profile (fuels proposals) -->
-  <div class="card card-pad mb-6 animate d1">
+  <!-- Upwork profile (fuels proposals) — Profile ke saath parallel -->
+  <div class="card card-pad animate d1">
     <div class="card-head"><h3>🧑‍💼 Upwork Profile</h3><span class="badge in_progress"><span class="dot"></span>Proposals ka fuel</span></div>
-    <p class="small muted" style="margin:0 0 14px">Ye info proposals ki opening banati hai — jitni asli aur strong, utna behtar letter. Apne Upwork profile se copy karein.</p>
+    <p class="small muted" style="margin:0 0 14px">Ye info proposals ki opening banati hai — apne Upwork profile se copy karein.</p>
     <form method="post" action="<?= page_url('settings') ?>">
       <input type="hidden" name="form" value="upwork_profile">
       <div class="row wrap" style="gap:16px">
-        <div class="field grow" style="min-width:220px"><label class="fld">Professional title</label>
-          <input class="input" name="uw_title" value="<?= esc($me['uw_title'] ?? '') ?>" placeholder="e.g. Senior Full-Stack Developer | React · Node · AI"></div>
-        <div class="field" style="flex:0 0 140px"><label class="fld">Experience (years)</label>
+        <div class="field grow" style="min-width:160px"><label class="fld">Upwork name</label>
+          <input class="input" name="uw_name" value="<?= esc($me['uw_name'] ?? '') ?>" placeholder="Jo naam Upwork par hai"></div>
+        <div class="field" style="flex:0 0 130px"><label class="fld">Experience (years)</label>
           <input class="input" name="uw_years" value="<?= esc($me['uw_years'] ?? '') ?>" placeholder="6"></div>
       </div>
+      <div class="field"><label class="fld">Professional title</label>
+        <input class="input" name="uw_title" value="<?= esc($me['uw_title'] ?? '') ?>" placeholder="e.g. Senior Full-Stack Developer | React · Node · AI"></div>
       <div class="field"><label class="fld">Top skills <span class="muted">(comma se)</span></label>
         <input class="input" name="uw_skills" value="<?= esc($me['uw_skills'] ?? '') ?>" placeholder="React, Next.js, Node.js, TypeScript, PHP, AI integrations"></div>
       <div class="field"><label class="fld">Profile overview / description</label>
-        <textarea class="textarea" name="uw_overview" style="min-height:110px" placeholder="Wohi overview jo aap ke Upwork profile par hai — kaun hain, kya banate hain, kis cheez mein best hain…"><?= esc($me['uw_overview'] ?? '') ?></textarea></div>
+        <textarea class="textarea" name="uw_overview" style="min-height:96px" placeholder="Wohi overview jo aap ke Upwork profile par hai…"><?= esc($me['uw_overview'] ?? '') ?></textarea></div>
       <button class="btn btn-primary mt-2">Save Upwork profile</button>
     </form>
   </div>
+  </div><!-- /grid -->
 
   <!-- Password -->
   <div class="card card-pad mb-6 animate d1">

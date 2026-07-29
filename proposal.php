@@ -206,7 +206,8 @@ function upwork_build_prompt(string $job, string $budget, string $notes, array $
     $profileTxt = '';
     foreach ($profileBits as $k => $v) $profileTxt .= "$k: $v\n";
 
-    $userMsg = "TODAY: " . date('Y-m-d') . "\nDEVELOPER: " . ($me['name'] ?: $me['username'])
+    $devName = trim((string)($me['uw_name'] ?? '')) ?: ($me['name'] ?: $me['username']);
+    $userMsg = "TODAY: " . date('Y-m-d') . "\nDEVELOPER: " . $devName
         . ($profileTxt !== '' ? "\nDEVELOPER PROFILE (use for the confident opening):\n" . $profileTxt : '')
         . "\nPORTFOLIO URL: $portfolioUrl"
         . "\nBUDGET GIVEN BY ME: " . ($budget !== '' ? $budget : '(none — estimate sensibly)')
@@ -313,7 +314,7 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
     }
     $top = array_slice($top, 0, $strongMatch ? 4 : 3);
 
-    $firstName = explode(' ', trim($me['name'] ?: $me['username']))[0];
+    $firstName = explode(' ', trim((string)($me['uw_name'] ?? '')) ?: trim($me['name'] ?: $me['username']))[0];
 
     // Human-readable stack phrase from the MAIN requirements.
     $pretty = ['react' => 'React', 'node' => 'Node.js', 'vue' => 'Vue', 'typescript' => 'TypeScript',
