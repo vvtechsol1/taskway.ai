@@ -9,14 +9,57 @@
 
 declare(strict_types=1);
 
+/** Pull any reference URLs the client put in the job post (designs, existing site, docs). */
+function extract_reference_links(string $text): array
+{
+    $links = [];
+    // Full URLs and www. links
+    if (preg_match_all('#\bhttps?://[^\s<>"\')\]]+#i', $text, $m)) $links = array_merge($links, $m[0]);
+    if (preg_match_all('#(?<![/\w])www\.[^\s<>"\')\]]+#i', $text, $m)) {
+        foreach ($m[0] as $u) $links[] = 'https://' . $u;
+    }
+    // Bare domains like crewupapp.co or dropbox.com/scl/...
+    if (preg_match_all('#(?<![/\w@.])([a-z0-9][a-z0-9-]*\.)+(com|net|org|io|co|app|dev|ai|me)(/[^\s<>"\')\]]*)?#i', $text, $m)) {
+        foreach ($m[0] as $u) $links[] = 'https://' . $u;
+    }
+    // Clean + dedupe (by normalized form), keep original order, cap at 8.
+    $seen = [];
+    $out = [];
+    foreach ($links as $u) {
+        $u = rtrim($u, '.,;:!?)');
+        $norm = strtolower(preg_replace('#^https?://(www\.)?#i', '', $u));
+        if ($norm === '' || isset($seen[$norm])) continue;
+        $seen[$norm] = true;
+        $out[] = $u;
+        if (count($out) >= 8) break;
+    }
+    return $out;
+}
+
+/** Human-readable names of the technologies the client's job post asks for. */
+function upwork_job_tech_names(string $job): array
+{
+    $pretty = ['react' => 'React', 'node' => 'Node.js', 'vue' => 'Vue.js', 'typescript' => 'TypeScript',
+        'directus' => 'Directus', 'wordpress' => 'WordPress', 'php' => 'PHP', 'python' => 'Python',
+        'react native' => 'React Native', 'shopify' => 'Shopify', 'mongodb' => 'MongoDB', 'mysql' => 'MySQL',
+        'redux' => 'Redux', 'tailwind' => 'Tailwind CSS', 'bootstrap' => 'Bootstrap', 'ai' => 'AI/LLM',
+        'api' => 'API Integrations', 'ecommerce' => 'E-commerce', 'crm' => 'CRM', 'saas' => 'SaaS', 'cloudflare' => 'Cloudflare'];
+    $reqs = upwork_job_requirements(mb_strtolower($job));
+    return array_values(array_map(fn($k) => $pretty[$k] ?? ucfirst($k), array_keys($reqs)));
+}
+
 function upwork_generate(string $job, string $budget, string $notes, array $me, array $projects, string $portfolioUrl): array
 {
+    $extras = [
+        'reference_links' => extract_reference_links($job),
+        'job_techs'       => upwork_job_tech_names($job),
+    ];
     $key = trim((string)setting('claude_api_key'));
     if (setting('ai_provider') === 'claude' || $key !== '') {
         $r = upwork_claude($job, $budget, $notes, $me, $projects, $portfolioUrl);
-        if ($r !== null) return $r + ['engine' => 'claude'];
+        if ($r !== null) return $r + $extras + ['engine' => 'claude'];
     }
-    return upwork_local($job, $budget, $notes, $me, $projects, $portfolioUrl) + ['engine' => 'local'];
+    return upwork_local($job, $budget, $notes, $me, $projects, $portfolioUrl) + $extras + ['engine' => 'local'];
 }
 
 /* ------------------------------------------------------------------ */

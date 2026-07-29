@@ -316,6 +316,12 @@ try {
             $row = $stmt->fetch();
             if (!$row) json_response(['ok' => false, 'error' => 'Not found.'], 404);
             $row['result'] = $row['result'] ? json_decode($row['result'], true) : null;
+            // Always derive reference links + demanded techs from the stored job post.
+            if (is_array($row['result'])) {
+                require_once __DIR__ . '/proposal.php';
+                if (empty($row['result']['reference_links'])) $row['result']['reference_links'] = extract_reference_links((string)$row['job']);
+                if (empty($row['result']['job_techs'])) $row['result']['job_techs'] = upwork_job_tech_names((string)$row['job']);
+            }
             json_response(['ok' => true, 'item' => $row]);
 
         case 'upwork_queue_delete':

@@ -83,6 +83,17 @@ require __DIR__ . '/../partials/header.php';
         <pre id="upTerms" style="white-space:pre-wrap;font-family:inherit;font-size:13.5px;line-height:1.75;margin:0;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px"></pre>
       </div>
 
+      <div class="card card-pad hidden" id="upTechsCard">
+        <div class="card-head"><h3>🛠️ Client ki demand — Technologies</h3></div>
+        <div id="upTechs" class="row wrap" style="gap:8px"></div>
+      </div>
+
+      <div class="card card-pad hidden" id="upRefsCard">
+        <div class="card-head"><h3>🔗 Job ke reference links</h3></div>
+        <p class="small muted" style="margin:0 0 10px">Apply se pehle in links ko achhi tarah study kar lein — client expect karega ke aap ne dekhe hain.</p>
+        <div id="upRefs" style="display:flex;flex-direction:column;gap:7px"></div>
+      </div>
+
       <div class="card card-pad">
         <div class="card-head"><h3>❓ Client se poochne wale sawal</h3></div>
         <div id="upQuestions" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -150,6 +161,31 @@ require __DIR__ . '/../partials/header.php';
       d.className = 'small'; d.style.cssText = 'background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 13px';
       d.textContent = x; q.appendChild(d);
     });
+    // Client-demanded technologies
+    var tk = document.getElementById('upTechsCard');
+    if (r.job_techs && r.job_techs.length) {
+      tk.classList.remove('hidden');
+      var tbox = document.getElementById('upTechs'); tbox.innerHTML = '';
+      r.job_techs.forEach(function (t) {
+        var s = document.createElement('span');
+        s.className = 'chip'; s.style.cssText = 'background:var(--primary-soft);border-color:transparent;color:var(--primary);font-weight:700';
+        s.textContent = t; tbox.appendChild(s);
+      });
+    } else tk.classList.add('hidden');
+    // Reference links from the job post
+    var rc = document.getElementById('upRefsCard');
+    if (r.reference_links && r.reference_links.length) {
+      rc.classList.remove('hidden');
+      var rbox = document.getElementById('upRefs'); rbox.innerHTML = '';
+      r.reference_links.forEach(function (u) {
+        var a = document.createElement('a');
+        a.href = u; a.target = '_blank'; a.rel = 'noopener'; a.setAttribute('data-no-pjax', '1');
+        a.className = 'small';
+        a.style.cssText = 'background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:9px 13px;color:var(--sky);font-weight:600;word-break:break-all';
+        a.textContent = '↗ ' + u;
+        rbox.appendChild(a);
+      });
+    } else rc.classList.add('hidden');
     // Upwork Terms fill-in guide
     var tc = document.getElementById('upTermsCard');
     if (r.terms_guide) { tc.classList.remove('hidden'); document.getElementById('upTerms').textContent = r.terms_guide; }
