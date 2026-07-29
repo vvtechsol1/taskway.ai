@@ -381,7 +381,7 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
     // WINNING FORMULA: Hi -> understanding -> approach -> why me + proof -> timeline -> CTA -> thanks.
     $lines = [];
     $lines[] = "Hi,";
-    $lines[] = "I read your requirements and understand what you're looking for — " . $stackPhrase . " work, built properly and production-ready. " . $hook;
+    $lines[] = "I read your requirements and understand what you're looking for. " . $hook;
     $lines[] = "";
     $lines[] = "Here's how I'd approach it:";
     $lines[] = "• A quick review/plan first, so we agree the scope before any code is written";
