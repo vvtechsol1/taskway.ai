@@ -10,16 +10,20 @@ $viewingUid = (!empty($_SESSION['view_uid']) && is_super_admin()) ? (int)$_SESSI
 $viewingUser = $viewingUid ? get_user($viewingUid) : null;
 $att = current_attendance();
 $unread = chat_total_unread(current_user_id());
-$rc = recycle_counts();
-$recTotal = $rc['tasks'] + $rc['projects'];
 
-// Per-user nav badges (namespaced so they never collide with a page's own vars).
-$nb = db()->prepare("SELECT COUNT(*) FROM tasks WHERE user_id = ? AND status IN ('todo','in_progress','blocked')");
-$nb->execute([scope_uid()]);
-$navOpenTasks = (int)$nb->fetchColumn();
-$np = db()->prepare("SELECT COUNT(*) FROM projects WHERE user_id = ? AND status='active'");
-$np->execute([scope_uid()]);
-$navActiveProjects = (int)$np->fetchColumn();
+// One combined query for all sidebar counts (was 4 separate queries per page load).
+// Also fixes a badge bug: recycled tasks no longer count in the open-tasks badge.
+$navUid = scope_uid();
+$navStmt = db()->prepare("SELECT
+    (SELECT COUNT(*) FROM tasks    WHERE user_id = :u AND deleted_at IS NULL AND status IN ('todo','in_progress','blocked')) AS open_tasks,
+    (SELECT COUNT(*) FROM projects WHERE user_id = :u AND deleted_at IS NULL AND status = 'active')                          AS active_projects,
+    (SELECT COUNT(*) FROM tasks    WHERE user_id = :u AND deleted_at IS NOT NULL)                                            AS rec_tasks,
+    (SELECT COUNT(*) FROM projects WHERE user_id = :u AND deleted_at IS NOT NULL)                                            AS rec_projects");
+$navStmt->execute([':u' => $navUid]);
+$navC = $navStmt->fetch() ?: [];
+$navOpenTasks = (int)($navC['open_tasks'] ?? 0);
+$navActiveProjects = (int)($navC['active_projects'] ?? 0);
+$recTotal = (int)($navC['rec_tasks'] ?? 0) + (int)($navC['rec_projects'] ?? 0);
 
 // "Tasks" is a group: parent = tasks page, submenu = Brain Dump + Board.
 $navBefore = [

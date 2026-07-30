@@ -24,8 +24,19 @@ function db(): PDO
     return $pdo;
 }
 
+const SCHEMA_VERSION = '12';
+
 function db_migrate(PDO $pdo): void
 {
+    // Fast path: schema already current -> skip all migration work (big win on shared hosting,
+    // where the CREATE/PRAGMA/INSERT storm used to run on EVERY request).
+    try {
+        $cur = $pdo->query("SELECT value FROM settings WHERE key='schema_version'")->fetchColumn();
+        if ($cur === SCHEMA_VERSION) return;
+    } catch (Throwable $e) {
+        // settings table doesn't exist yet — first run, do the full migration.
+    }
+
     $pdo->exec(<<<SQL
         CREATE TABLE IF NOT EXISTS projects (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -187,6 +198,12 @@ function db_migrate(PDO $pdo): void
     }
 
     db_migrate_users($pdo);
+
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_pq_status ON proposal_queue(status);');
+
+    // Mark schema current so the next request skips all of the above.
+    $pdo->prepare("INSERT INTO settings(key, value) VALUES('schema_version', ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value")->execute([SCHEMA_VERSION]);
 }
 
 /**
