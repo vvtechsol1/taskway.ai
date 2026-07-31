@@ -97,6 +97,14 @@ require __DIR__ . '/../partials/header.php';
         <div id="upRefs" style="display:flex;flex-direction:column;gap:7px"></div>
       </div>
 
+      <div class="card card-pad hidden" id="upAnswersCard">
+        <div class="card-head"><h3>💬 Client ke sawalon ke jawab</h3>
+          <div class="card-action"><button class="btn btn-soft btn-sm" onclick="upCopy('upAnswers')">📋 Copy all</button></div>
+        </div>
+        <p class="small muted" style="margin:0 0 10px">Client ne job post mein ye poocha hai — ye jawab proposal ke saath paste karein (numbered format ho to wahi order rakhein).</p>
+        <div id="upAnswers" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+
       <div class="card card-pad">
         <div class="card-head"><h3>❓ Client se poochne wale sawal</h3></div>
         <div id="upQuestions" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -164,6 +172,19 @@ require __DIR__ . '/../partials/header.php';
       d.className = 'small'; d.style.cssText = 'background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 13px';
       d.textContent = x; q.appendChild(d);
     });
+    // Client's questions answered
+    var ac = document.getElementById('upAnswersCard');
+    if (r.client_answers && r.client_answers.length) {
+      ac.classList.remove('hidden');
+      var abox = document.getElementById('upAnswers'); abox.innerHTML = '';
+      r.client_answers.forEach(function (qa) {
+        var d = document.createElement('div');
+        d.style.cssText = 'background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px 14px';
+        d.innerHTML = '<div class="small strong" style="color:var(--primary);margin-bottom:5px">Q: ' + esc(qa.question) + '</div>' +
+          '<div class="small" style="line-height:1.6">' + esc(qa.answer) + '</div>';
+        abox.appendChild(d);
+      });
+    } else ac.classList.add('hidden');
     // Client-demanded technologies
     var tk = document.getElementById('upTechsCard');
     if (r.job_techs && r.job_techs.length) {

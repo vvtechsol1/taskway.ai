@@ -177,8 +177,10 @@ function upwork_build_prompt(string $job, string $budget, string $notes, array $
         . '"billing": {"mode": "fixed"|"milestones"|"hourly", "reason": string, '
         . '"milestones": [{"name": string, "date": "YYYY-MM-DD", "price": string}]}, '
         . '"questions": [string], '
+        . '"client_answers": [{"question": string, "answer": string}], '
         . '"verdict": {"take": "yes"|"caution"|"no", "advice": string}, '
         . '"terms_guide": string}' . "\n"
+        . "CLIENT_ANSWERS: if the job post asks the applicant any questions or screening items (e.g. 'your years of experience', 'share three live apps', 'how would you approach X', 'confirm the budget'), extract EACH one and write an authentic, fully personalized answer using the developer's real profile and projects — specific, confident, no fake claims, 1-3 sentences each (links where asked). If the post asks nothing, return an empty array.\n"
         . "TERMS_GUIDE (Roman Urdu, for the developer): step-by-step instructions for Upwork's 'Terms / How do you want to be paid?' section. "
         . "For milestones: say select 'By milestone', then give the exact rows to type (Description = short deliverable name, Due date, Amount — matching billing.milestones), remind that Description is client-visible, keep due dates with 1-2 din buffer, NEVER start work until the milestone shows Funded/Escrow, and note Upwork's ~10% service fee (amount received will be less). "
         . "For fixed: say select 'By project', one amount + delivery date. For hourly jobs the Terms section shows only the hourly rate — tell them what rate to enter and to always use the Upwork time tracker for payment protection.\n"
@@ -188,19 +190,20 @@ function upwork_build_prompt(string $job, string $budget, string $notes, array $
         . "1) LENGTH: 150-220 words (never over 250). Don't waste words. Simple English. Mention THEIR business/product by name. Confident, not overconfident.\n"
         . "1b) BANNED PHRASES (never use): 'I am new but', 'Please give me one chance', 'I can do this perfectly', 'Dear Hiring Manager', any greeting salutation, long life story, generic copy-paste lines.\n"
         . "2) HUMAN, NOT AI: write like a busy senior freelancer typing a quick, confident message — contractions (I'll, you'll, that's), varied sentence lengths, no AI-sounding phrases ('I'm excited', 'I'd love to', 'exactly how I work', 'passionate', perfectly parallel bullets). One tiny imperfection of rhythm is fine.\n"
-        . "3) OPENING (1-2 lines): PROFILE-ANCHORED CONFIDENCE — connect the developer's profile (title/experience/strongest relevant skill from DEVELOPER PROFILE below) directly to THIS job, in a calm, reassuring tone that makes the client relax: this is routine, well-practiced work for him (e.g. 'Cross-browser extensions in TypeScript are regular work for me — your feature list is familiar territory, nothing here is experimental.'). NEVER lecture about their problems/risks in the opening, never greetings, never resume-dumps. The client should finish line 2 feeling 'this person can clearly handle it'.\n"
-        . "4) 'What you'll get:' — 3 concrete deliverable bullets tailored to THIS job (outcomes, not skills: 'a survey your visitors actually finish', not 'React experience'). This is where skills show, framed as what WE deliver to THEM.\n"
-        . "5) Proof: MAX 2 live links of genuinely matching projects + the portfolio link, each with 3-5 words of context.\n"
-        . "6) CLOSING MOVE (last 1-2 lines): drive toward hire with an assumptive, low-friction next step anchored in time — e.g. 'Send me the designs and you'll have a concrete plan + timeline within 24 hours.' Make replying feel like the obvious easy step. Never 'hope to hear from you'.\n"
+        . "2b) DEEP PERSONALIZATION (most important rule): clients receive 20-50 proposals — yours must feel written ONLY for them. Every sentence must reference THEIR project. Test: if a sentence could be pasted unchanged into another proposal, rewrite it. NEVER open with 'I've worked on several...' or any developer-background line.\n"
+        . "3) OPENING (2-3 lines): START WITH THE CLIENT'S PROJECT, not the developer — 'I reviewed your requirements, and I understand you're looking for [SPECIFIC detailed restatement: what they're building, from what starting point, with which exact features/constraints — their own words].' Then ONE commitment line tied to their constraints (e.g. 'I'll make sure the platform is fully independent, scalable, and easy to maintain while preserving your existing code structure.'). This proves the post was actually read. Profile confidence is woven in subtly, never leads.\n"
+        . "4) 'What you'll get:' / approach — project-specific outcomes covering THEIR full flow end-to-end (e.g. 'a smooth learning experience from registration through certificate generation'), clean code, reusable components — phrased for THIS job only, never generic.\n"
+        . "5) Proof: CLAIM FIRST, THEN LINKS — one sentence stating the exact capabilities this job needs that he has shipped ('I've built production-ready React/Next.js applications with authentication, multilingual support, responsive UI, and clean architecture'), THEN max 2 live links + portfolio as evidence supporting that claim. Links without the claim are just URLs.\n"
+        . "6) CLOSING: end with ONE MEANINGFUL TECHNICAL QUESTION about a concrete detail from their post — 'One question: does your starter code already include the authentication flow, or should I build it from scratch?' Questions about THEIR specifics dramatically increase reply rates. Optionally pair with a time-anchored offer (plan within 24 hours). Never bare 'Let's discuss'.\n"
         . "7) NO-MATCH JOBS: never mention lack of experience or 'first time' — present closest work as recent shipped work; sell the plan (no fake specific claims).\n"
         . "8) Polish: em dashes (—), expand abbreviations first mention, plain text only. If the client's post demands a specific application format, THEIR format wins over all of this.\n"
         . "9) EXACT OUTPUT SKELETON for cover_letter — the WINNING FORMULA (real newline characters, follow this sequence):\n"
         . "Hi [client's first name if it appears in the post, else just 'Hi,']\n"
-        . "[HOOK + UNDERSTANDING — 2-3 lines: 'I read your requirements' energy — prove you understood what THEY are building (mention their business/product by name, use their words) + one profile-anchored confidence line (this is routine work for me)]\n[blank line]\n"
-        . "Here's how I'd approach it:\n• [step 1 — review/plan first so scope is agreed before code]\n• [step 2 — build in small tested increments, daily updates]\n[blank line]\n"
-        . "Why I'm a good fit:\n[1-2 sentences — tech stack mentioned naturally, confident not overconfident]\n• [live url 1] — [4-6 word context]\n• [live url 2] — [4-6 word context]\n• More: [portfolio url]\n[blank line]\n"
+        . "I reviewed your requirements, and I understand you're looking for [SPECIFIC restatement of THEIR project — what, from what starting point, which exact features/constraints, their words]. [One commitment line tied to their constraints — scalable/maintainable/preserving their existing structure etc.]\n[blank line]\n"
+        . "Here's how I'd approach it:\n• [step 1 — personalized to their project, plan/review first]\n• [step 2 — build increments covering THEIR flow end-to-end, daily updates]\n[blank line]\n"
+        . "Why I'm a good fit:\nI've built production-ready [their stack] applications with [the exact capabilities THIS job needs]. Some recent work:\n• [live url 1] — [4-6 word context]\n• [live url 2] — [4-6 word context]\n• Portfolio: [portfolio url]\n[blank line]\n"
         . "Timeline: [realistic estimate matched to this scope/budget — e.g. '2-3 weeks' or 'can start today' for hourly]\n[blank line]\n"
-        . "[CALL TO ACTION — 'Let's discuss the details' energy but assumptive + time-anchored: send X and you'll have Y within 24 hours]\n[blank line]\n"
+        . "One question: [meaningful technical question about a concrete detail from THEIR post]? [Optional: time-anchored offer — send X and you'll have a concrete plan within 24 hours.]\n[blank line]\n"
         . "Thanks,\n[First name]\n"
         . "Sign with the developer's first name (from uw_name if present).\n"
         . "BILLING: recommend fixed for small/clear scope, milestones for medium-large scope, hourly for vague/ongoing work. HOURLY DETECTION: if the stated budget is a small number (roughly ≤ \$60) combined with a long/ongoing duration ('1 to 3 months', 'ongoing', hours per week, agency contract), it is an HOURLY RATE — recommend hourly at that rate, milestones empty, and terms_guide covers the hourly rate + Upwork Desktop Time Tracker rule. MILESTONE COUNT MUST MATCH THE BUDGET AND SCOPE — think like the client (every milestone adds funding/approval friction): under ~\$300 use MAX 2 milestones; \$300-1000 use 2-3; only \$1000+/complex projects deserve 4-5. Never micro-milestones under ~\$50 — each must be a meaningful deliverable the client can see/test. Milestone 1 modest (a plan + something working) to lower their risk; dates start a few days after today, realistically spaced; prices sum to ~the budget. reason = 2-3 sentences.\n"
@@ -388,7 +391,7 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
     $lines[] = "• Then small, tested increments with a short update every day — you always know where things stand";
     $lines[] = "";
     $lines[] = "Why I'm a good fit:";
-    $lines[] = ($bullets[0] ?? "I ship clean, maintainable code in exactly this stack") . ".";
+    $lines[] = "I've built production-ready " . ($stackPhrase !== 'this stack' ? $stackPhrase : 'web') . " applications with exactly this kind of scope — " . lcfirst(($bullets[0] ?? "clean, maintainable code")) . ". Some recent work:";
     $rel = [];
     foreach (array_slice($top, 0, 2) as $t) {
         $p = $t['p'];
@@ -402,7 +405,7 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
     $lines[] = "Timeline: " . $timeline . ".";
     $lines[] = "";
     if ($notes !== '') { $lines[] = "Note: " . $notes; $lines[] = ""; }
-    $lines[] = "Let's discuss the details — send over your " . ($strongMatch ? "scope/designs" : "requirements") . " and you'll have a concrete plan within 24 hours.";
+    $lines[] = "One question: is there an existing codebase/design I'd be working from, or is this greenfield? Send over the details and you'll have a concrete plan within 24 hours.";
     $lines[] = "";
     $lines[] = "Thanks,";
     $lines[] = $firstName;
@@ -498,9 +501,36 @@ function upwork_local(string $job, string $budget, string $notes, array $me, arr
         $tg .= "• Weekly hours cap client ne set kiya ho to us ke andar rahein; extra hours pehle poochh kar";
     }
 
+    // Client's own questions from the post -> authentic personalized answers.
+    $clientAnswers = [];
+    if (preg_match_all('/^.{8,220}\?\s*$/m', $job, $qm)) {
+        foreach (array_slice($qm[0], 0, 5) as $q) {
+            $q = trim($q);
+            $ql = mb_strtolower($q);
+            if (preg_match('/year|experience/', $ql)) {
+                $ans = ($uwYears !== '' ? $uwYears . '+ years' : 'Several years') . ' of professional ' . $roleBit . ' work — ' . $stackPhrase . ' is my daily stack.';
+            } elseif (preg_match('/example|link|live|portfolio|previous|sample|built/', $ql)) {
+                $urls = array_map(fn($r2) => $r2['url'], $rel);
+                $ans = 'Live work: ' . implode(' , ', $urls) . ' — full portfolio: ' . $portfolioUrl;
+            } elseif (preg_match('/budget|comfortable|rate/', $ql)) {
+                $ans = 'Yes — confirmed, I\'m comfortable with the stated budget/rate.';
+            } elseif (preg_match('/timeline|how long|deliver|when/', $ql)) {
+                $ans = 'Realistically ' . $timeline . ' for this scope — I\'ll confirm after seeing the details on day one.';
+            } elseif (preg_match('/approach|how would|process/', $ql)) {
+                $ans = 'Plan/review first so we lock scope, then small tested increments with a daily update — details in my letter above.';
+            } elseif (preg_match('/start|available|hours/', $ql)) {
+                $ans = 'I can start immediately and keep a consistent daily schedule.';
+            } else {
+                $ans = 'Yes — short answer covered in my letter above; happy to go deeper on a quick call.';
+            }
+            $clientAnswers[] = ['question' => $q, 'answer' => $ans];
+        }
+    }
+
     return [
         'cover_letter' => implode("\n", $lines),
         'relevant_projects' => $rel,
+        'client_answers' => $clientAnswers,
         'billing' => ['mode' => $mode, 'reason' => $reason, 'milestones' => $milestones],
         'questions' => [
             'Is there an existing codebase/design I should review before estimating, or is this greenfield?',
