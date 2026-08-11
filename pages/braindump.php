@@ -91,8 +91,8 @@ projects (#tags or headings) and priority (urgent, !!) automatically."></textare
     </div>
     <div class="card card-pad" style="background:var(--primary-soft);border:0">
       <strong>🌐 Urdu / Roman-Urdu → English</strong>
-      <p class="small dim mt-2" style="margin:0">Notes Roman-Urdu mein likhein — titles khudbakhud English mein ban jayenge. Jaise <em>"checkout ka bug theek kiya"</em> → <strong>"Fix checkout bug"</strong>.
-      <?php if ($engine === 'Claude AI'): ?> Claude AI on hai — best-quality translation.<?php else: ?> Aur behtar/mushkil jumlon ki translation ke liye <a href="<?= page_url('settings') ?>" style="color:var(--primary);font-weight:700">Settings</a> se Claude AI on karein.<?php endif; ?></p>
+      <p class="small dim mt-2" style="margin:0">Write notes in Roman Urdu — task titles automatically come out in English. Like <em>"checkout ka bug theek kiya"</em> → <strong>"Fix checkout bug"</strong>.
+      <?php if ($engine === 'Claude AI'): ?> Claude AI is on — best-quality translation.<?php else: ?> For even better translation of tricky sentences, turn on Claude AI in <a href="<?= page_url('settings') ?>" style="color:var(--primary);font-weight:700">Settings</a>.<?php endif; ?></p>
     </div>
     <div class="card card-pad" style="background:var(--primary-soft);border:0">
       <strong>Tip</strong>

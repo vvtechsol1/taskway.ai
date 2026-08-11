@@ -1,5 +1,6 @@
 <?php
 /** Upwork Proposal — paste a job post, get a tailored cover letter + billing plan. */
+if ((int)(current_user()['uw_enabled'] ?? 0) !== 1) redirect(page_url('dashboard'));
 $ACTIVE = 'upwork';
 $PAGE_TITLE = 'Upwork Proposal';
 $PAGE_SUB = 'Paste the job — get a tailored proposal with your live projects';
@@ -24,22 +25,23 @@ require __DIR__ . '/../partials/header.php';
         <span class="badge in_progress"><span class="dot"></span><?= esc($engine) ?></span>
         <span class="badge"><?= $projCount ?> projects loaded</span>
       </div>
+      <p class="small muted" style="margin:0 0 8px">💡 Tip: open the job on Upwork, press <strong>Ctrl+A</strong> then <strong>Ctrl+C</strong>, and paste the whole page here — budget, rate and duration are <strong>auto-detected</strong> and the clutter is cleaned up.</p>
       <textarea id="upJob" class="textarea brain-input" style="min-height:230px"
-        placeholder="Upwork ki job post yahan paste karein — poora description (summary, responsibilities, requirements)…"></textarea>
+        placeholder="Paste the Upwork job post here — the full description (summary, responsibilities, requirements)…"></textarea>
       <div class="row wrap mt-4" style="gap:10px">
         <div class="grow" style="min-width:160px">
-          <label class="fld" for="upBudget">💰 Budget <span class="muted">(optional — e.g. $800 ya $30/hr)</span></label>
+          <label class="fld" for="upBudget">💰 Budget <span class="muted">(optional — e.g. $800 or $30/hr)</span></label>
           <input class="input" id="upBudget" placeholder="$500">
         </div>
         <div class="grow" style="min-width:200px">
-          <label class="fld" for="upNotes">🗒️ Meri baat <span class="muted">(optional — koi khaas point)</span></label>
-          <input class="input" id="upNotes" placeholder="e.g. 2 hafte mein chahiye, ya main Directus pehli dafa use karunga">
+          <label class="fld" for="upNotes">🗒️ My note <span class="muted">(optional — anything specific)</span></label>
+          <input class="input" id="upNotes" placeholder="e.g. needs to ship in 2 weeks, or emphasize the React experience">
         </div>
       </div>
       <div class="row between mt-4 wrap" style="gap:10px">
-        <span class="small muted">Proposal aap ke portfolio projects check kar ke banega</span>
+        <span class="small muted">The proposal is built from your matching portfolio projects</span>
         <div class="row" style="gap:10px">
-          <button class="btn btn-soft btn-lg" id="upQueue" title="Claude khud likhega (thodi der mein ready hoga)">🤖 Send to Claude</button>
+          <button class="btn btn-soft btn-lg" id="upQueue" title="Claude writes it himself (ready in a little while)">🤖 Send to Claude</button>
           <button class="btn btn-primary btn-lg" id="upGo">✨ Generate now</button>
         </div>
       </div>
@@ -49,7 +51,7 @@ require __DIR__ . '/../partials/header.php';
     <div class="card card-pad animate d1">
       <div class="card-head"><h3>🤖 Claude queue</h3>
         <span class="badge" id="uqCount"></span>
-        <div class="card-action"><span class="small muted">Claude in par khud kaam karta hai — ready hone par yahin khul jayega</span></div>
+        <div class="card-action"><span class="small muted">Claude works on these himself — the result opens right here when ready</span></div>
       </div>
       <div id="uqList" class="small muted">Loading…</div>
     </div>
@@ -64,7 +66,7 @@ require __DIR__ . '/../partials/header.php';
       </div>
 
       <div class="card card-pad">
-        <div class="card-head"><h3>💳 Kaise charge karein?</h3><span class="badge done" id="upMode"></span></div>
+        <div class="card-head"><h3>💳 How should you charge?</h3><span class="badge done" id="upMode"></span></div>
         <p class="dim" id="upReason" style="margin:0 0 14px"></p>
         <div id="upMilestonesWrap" class="hidden">
           <div style="overflow-x:auto">
@@ -80,61 +82,88 @@ require __DIR__ . '/../partials/header.php';
       </div>
 
       <div class="card card-pad hidden" id="upTermsCard">
-        <div class="card-head"><h3>🧾 Upwork "Terms" section — aise bharein</h3>
+        <div class="card-head"><h3>🧾 Upwork "Terms" section — how to fill it</h3>
           <div class="card-action"><button class="btn btn-soft btn-sm" onclick="upCopy('upTerms')">📋 Copy</button></div>
         </div>
         <pre id="upTerms" style="white-space:pre-wrap;font-family:inherit;font-size:13.5px;line-height:1.75;margin:0;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px"></pre>
       </div>
 
       <div class="card card-pad hidden" id="upTechsCard">
-        <div class="card-head"><h3>🛠️ Client ki demand — Technologies</h3></div>
+        <div class="card-head"><h3>🛠️ Technologies the client wants</h3></div>
         <div id="upTechs" class="row wrap" style="gap:8px"></div>
       </div>
 
       <div class="card card-pad hidden" id="upRefsCard">
-        <div class="card-head"><h3>🔗 Job ke reference links</h3></div>
-        <p class="small muted" style="margin:0 0 10px">Apply se pehle in links ko achhi tarah study kar lein — client expect karega ke aap ne dekhe hain.</p>
+        <div class="card-head"><h3>🔗 Reference links from the job</h3></div>
+        <p class="small muted" style="margin:0 0 10px">Study these links carefully before applying — the client will expect you to have seen them.</p>
         <div id="upRefs" style="display:flex;flex-direction:column;gap:7px"></div>
       </div>
 
       <div class="card card-pad hidden" id="upAnswersCard">
-        <div class="card-head"><h3>💬 Client ke sawalon ke jawab</h3>
+        <div class="card-head"><h3>💬 Answers to the client's questions</h3>
           <div class="card-action"><button class="btn btn-soft btn-sm" onclick="upCopy('upAnswers')">📋 Copy all</button></div>
         </div>
-        <p class="small muted" style="margin:0 0 10px">Client ne job post mein ye poocha hai — ye jawab proposal ke saath paste karein (numbered format ho to wahi order rakhein).</p>
+        <p class="small muted" style="margin:0 0 10px">The client asked these in the job post — paste these answers along with your proposal (keep the same order if it's numbered).</p>
         <div id="upAnswers" style="display:flex;flex-direction:column;gap:10px"></div>
       </div>
 
       <div class="card card-pad">
-        <div class="card-head"><h3>❓ Client se poochne wale sawal</h3></div>
+        <div class="card-head"><h3>❓ Questions to ask the client</h3></div>
         <div id="upQuestions" style="display:flex;flex-direction:column;gap:8px"></div>
       </div>
 
       <div class="card card-pad" id="upVerdictCard" style="border-width:2px">
-        <div class="card-head"><h3>🧭 Kya ye job leni chahiye?</h3><span class="badge" id="upVerdictBadge"></span></div>
+        <div class="card-head"><h3>🧭 Should you take this job?</h3><span class="badge" id="upVerdictBadge"></span></div>
         <p class="dim" id="upVerdictText" style="margin:0;font-size:14.5px;line-height:1.7"></p>
       </div>
     </div>
   </div>
 
   <!-- Side tips -->
-  <div class="animate d1" style="display:flex;flex-direction:column;gap:20px">
+  <div class="animate d1" style="display:flex;flex-direction:column;gap:20px;min-width:0">
     <div class="card card-pad">
-      <div class="card-head"><h3>🔗 Kya include hoga</h3></div>
+      <div class="card-head"><h3>🔗 What's included</h3></div>
       <div class="small dim" style="display:flex;flex-direction:column;gap:10px">
-        <div>✅ Job se <strong>match hone wale projects</strong> ke live links</div>
-        <div>✅ Aap ka <strong>portfolio link</strong></div>
+        <div>✅ Live links of <strong>projects matching the job</strong></div>
+        <div>✅ Your <strong>portfolio link</strong></div>
         <div>✅ Professional <strong>cover letter</strong> (150–250 words)</div>
-        <div>✅ <strong>Fixed vs Milestones</strong> ka mashwara</div>
-        <div>✅ Milestones: <strong>naam + date + price</strong></div>
-        <div>✅ Client ke liye smart <strong>questions</strong></div>
+        <div>✅ <strong>Fixed vs Milestones</strong> advice</div>
+        <div>✅ Milestones: <strong>name + date + price</strong></div>
+        <div>✅ Smart <strong>questions</strong> for the client</div>
       </div>
     </div>
     <div class="card card-pad" style="background:var(--primary-soft);border:0">
       <strong>💡 Best results</strong>
       <p class="small dim mt-2" style="margin:0"><?= $engine !== 'Smart offline'
-        ? esc($engine) . ' on hai — har job ke liye fresh, tailored letter milega.'
-        : 'Har job ke liye alag, tailored AI letter chahiye? <a href="' . page_url('settings') . '" style="color:var(--primary);font-weight:700">Settings → Brain Dump AI</a> mein <strong>Groq ki FREE key</strong> laga dein (console.groq.com — koi card nahi). Abhi offline template engine chal raha hai.' ?></p>
+        ? esc($engine) . ' is on — every job gets a fresh, tailored letter.'
+        : 'Want a fresh, tailored AI letter for every job? Add a <strong>FREE Groq key</strong> in <a href="' . page_url('settings') . '" style="color:var(--primary);font-weight:700">Settings → Brain Dump AI</a> (console.groq.com — no card needed). The offline template engine is running right now.' ?></p>
+    </div>
+
+    <!-- AI Trainer: feed improvements that apply to every future proposal -->
+    <div class="card card-pad animate d1">
+      <div class="card-head"><h3>🧠 AI Trainer</h3>
+        <span class="badge" id="urCount"></span>
+      </div>
+      <p class="small muted" style="margin:0 0 10px">Teach the AI — feed an improvement and every future proposal (Generate now + Claude) will follow it.</p>
+      <textarea id="urInput" class="textarea" style="min-height:74px;width:100%"
+        placeholder="Teach me something…"></textarea>
+      <button class="btn btn-primary" id="urFeed" style="width:100%;margin-top:10px">🧠 Feed</button>
+      <div id="urList" style="margin-top:14px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- AI Trainer rule viewer modal -->
+<div class="modal-back" id="urModal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head"><h3>🧠 Fed rule</h3>
+      <button class="icon-btn" data-close-modal style="margin-left:auto">✕</button></div>
+    <div class="modal-body">
+      <div id="urModalText" style="white-space:pre-wrap;font-size:13.5px;line-height:1.7;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:16px;max-height:55vh;overflow-y:auto"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-close-modal>Close</button>
+      <button class="btn" style="background:var(--danger-soft);color:var(--coral);font-weight:700" id="urModalDel">🗑️ Delete rule</button>
     </div>
   </div>
 </div>
@@ -219,14 +248,54 @@ require __DIR__ . '/../partials/header.php';
     var v = r.verdict || null;
     if (v && v.advice) {
       vc.classList.remove('hidden');
-      var meta = { yes: ['🟢 Le lo!', 'var(--mint)'], caution: ['🟡 Soch kar', 'var(--amber)'], no: ['🔴 Chhor do', 'var(--coral)'] }[v.take] || ['🧭', 'var(--border-2)'];
+      var meta = { yes: ['🟢 Take it!', 'var(--mint)'], caution: ['🟡 Think twice', 'var(--amber)'], no: ['🔴 Skip it', 'var(--coral)'] }[v.take] || ['🧭', 'var(--border-2)'];
       document.getElementById('upVerdictBadge').textContent = meta[0];
       document.getElementById('upVerdictBadge').style.cssText = 'background:transparent;border:1.5px solid ' + meta[1] + ';color:' + meta[1];
       document.getElementById('upVerdictText').textContent = v.advice;
       vc.style.borderColor = meta[1];
+      showVerdictAlert(v);
     } else vc.classList.add('hidden');
     document.getElementById('upResult').classList.remove('hidden');
     document.getElementById('upResult').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // Proposal-ready side alert — green (take it) / yellow (think twice) / red (skip it).
+  function showVerdictAlert(v) {
+    var old = document.getElementById('upVerdictAlert');
+    if (old) old.remove();
+    var conf = {
+      yes:     { bg: '#0FA968', icon: '✅', title: 'Proposal ready — TAKE this job',   sub: 'Strong fit for your stack. Apply fast!' },
+      caution: { bg: '#D97706', icon: '⚠️', title: 'Proposal ready — think twice',     sub: 'Doable, but read the advice before applying.' },
+      no:      { bg: '#DC2626', icon: '⛔', title: 'Proposal ready — better to SKIP',  sub: 'Low budget / red flags — see why below.' }
+    }[v.take] || { bg: '#475569', icon: '🧭', title: 'Proposal ready', sub: '' };
+    var el = document.createElement('div');
+    el.id = 'upVerdictAlert';
+    el.style.cssText = 'position:fixed;top:84px;right:18px;z-index:9999;max-width:340px;background:' + conf.bg +
+      ';color:#fff;border-radius:16px;padding:16px 18px;box-shadow:0 16px 40px -10px rgba(0,0,0,.45);cursor:pointer;' +
+      'animation:uvaIn .35s cubic-bezier(.2,.9,.3,1.2)';
+    el.innerHTML =
+      '<div style="display:flex;gap:11px;align-items:flex-start">' +
+        '<span style="font-size:24px;line-height:1">' + conf.icon + '</span>' +
+        '<div style="min-width:0">' +
+          '<div style="font-weight:800;font-size:14.5px;line-height:1.35">' + conf.title + '</div>' +
+          (conf.sub ? '<div style="font-size:12.5px;opacity:.92;margin-top:3px">' + conf.sub + '</div>' : '') +
+          '<div style="font-size:12px;opacity:.85;margin-top:6px">' + esc(String(v.advice || '').slice(0, 110)) + (String(v.advice || '').length > 110 ? '…' : '') + '</div>' +
+        '</div>' +
+        '<button style="background:rgba(255,255,255,.22);border:0;color:#fff;width:22px;height:22px;border-radius:7px;cursor:pointer;flex:0 0 auto;font-size:12px;line-height:1" ' +
+          'onclick="event.stopPropagation();this.closest(\'#upVerdictAlert\').remove()">✕</button>' +
+      '</div>';
+    el.addEventListener('click', function () {
+      document.getElementById('upVerdictCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.remove();
+    });
+    if (!document.getElementById('uvaStyle')) {
+      var st = document.createElement('style');
+      st.id = 'uvaStyle';
+      st.textContent = '@keyframes uvaIn{from{opacity:0;transform:translateX(30px) scale(.95)}to{opacity:1;transform:none}}';
+      document.head.appendChild(st);
+    }
+    document.body.appendChild(el);
+    setTimeout(function () { if (el.parentNode) el.remove(); }, 20000);
   }
 
   function fields() {
@@ -268,9 +337,12 @@ require __DIR__ . '/../partials/header.php';
     var url, opts;
     if (p.provider === 'groq') {
       url = 'https://api.groq.com/openai/v1/chat/completions';
+      var gq = { model: p.model, max_tokens: 2200, temperature: 0.4,
+          messages: [{ role: 'system', content: p.system }, { role: 'user', content: p.user }] };
+      // gpt-oss models burn tokens on hidden reasoning — keep it minimal so the JSON isn't truncated.
+      if (/gpt-oss/i.test(p.model)) gq.reasoning_effort = 'low';
       opts = { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + p.key },
-        body: JSON.stringify({ model: p.model, max_tokens: 3000, temperature: 0.4,
-          messages: [{ role: 'system', content: p.system }, { role: 'user', content: p.user }] }) };
+        body: JSON.stringify(gq) };
     } else if (p.provider === 'gemini') {
       url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(p.model) + ':generateContent?key=' + encodeURIComponent(p.key);
       opts = { method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -284,6 +356,14 @@ require __DIR__ . '/../partials/header.php';
           messages: [{ role: 'user', content: p.user }] }) };
     }
     var res = await fetch(url, opts);
+    // Groq gpt-oss free tier = 8k tokens/min — on 413/429 retry once on llama (12k TPM)
+    // so the user still gets a full-rules AI letter instead of the offline template.
+    if (!res.ok && p.provider === 'groq' && /gpt-oss/i.test(p.model) && (res.status === 413 || res.status === 429)) {
+      var retry = JSON.parse(opts.body);
+      retry.model = 'llama-3.3-70b-versatile';
+      delete retry.reasoning_effort;
+      res = await fetch(url, { method: 'POST', headers: opts.headers, body: JSON.stringify(retry) });
+    }
     if (!res.ok) throw new Error(p.provider + ' HTTP ' + res.status);
     var j = await res.json();
     var text = p.provider === 'groq' ? (j.choices && j.choices[0].message.content)
@@ -294,10 +374,46 @@ require __DIR__ . '/../partials/header.php';
     return out;
   }
 
+  // Smart paste: when the whole Upwork job page is pasted, auto-detect budget/rate
+  // and strip the obvious page chrome so only the job content remains.
+  var jobBox = document.getElementById('upJob');
+  jobBox.addEventListener('paste', function () {
+    setTimeout(function () {
+      var t = jobBox.value;
+      if (t.length < 200) return;   // a normal hand-paste, leave it alone
+
+      // 1) Budget detection: hourly range first, then fixed price near budget-ish words.
+      var budgetEl = document.getElementById('upBudget');
+      if (!budgetEl.value.trim()) {
+        var m = t.match(/\$\s?([\d,]+(?:\.\d+)?)\s*[-–]\s*\$\s?([\d,]+(?:\.\d+)?)\s*(?:\/\s*hr|per hour|hourly)/i)
+             || t.match(/hourly[^$]{0,40}\$\s?([\d,]+(?:\.\d+)?)\s*[-–]\s*\$\s?([\d,]+(?:\.\d+)?)/i);
+        if (m) { budgetEl.value = '$' + m[1] + '-$' + m[2] + '/hr'; }
+        else {
+          m = t.match(/(?:fixed[- ]price|budget|est\.?\s*budget)[^$]{0,60}\$\s?([\d,]+(?:\.\d+)?)/i)
+           || t.match(/\$\s?([\d,]+(?:\.\d+)?)\s*(?:\n|\s)*(?:fixed[- ]price|budget)/i);
+          if (m) budgetEl.value = '$' + m[1];
+        }
+        if (budgetEl.value) TW.toast('Budget detected: ' + budgetEl.value + ' ✓');
+      }
+
+      // 2) Strip Upwork page chrome (exact-line matches only — conservative).
+      var junk = /^(apply now|save job|apply saved|log in|sign ?up|find work|find talent|why upwork|search|messages|notifications|help|how it works|upwork|home|jobs|my feed|report this job|flag as inappropriate|share|open job in a new window|about the client|member since.*|view job posting|see more|show more|less)$/i;
+      var lines = t.split('\n'), out = [], blank = 0;
+      for (var i = 0; i < lines.length; i++) {
+        var ln = lines[i].trim();
+        if (junk.test(ln)) continue;
+        if (ln === '') { if (++blank > 1) continue; } else blank = 0;
+        out.push(lines[i]);
+      }
+      var cleaned = out.join('\n').trim();
+      if (cleaned.length >= 120 && cleaned.length < t.length) jobBox.value = cleaned;
+    }, 60);
+  });
+
   btn.addEventListener('click', async function () {
     var f = fields();
-    if (f.job.length < 40) { TW.toast('Pehle job post paste karein', 'info'); return; }
-    btn.disabled = true; btn.textContent = '✨ Likh raha hoon…';
+    if (f.job.length < 40) { TW.toast('Paste the job post first', 'info'); return; }
+    btn.disabled = true; btn.textContent = '✨ Writing…';
     try {
       var p = await TW.api('upwork_prompt', f);
       if (p.provider && p.provider !== 'local') {
@@ -320,11 +436,11 @@ require __DIR__ . '/../partials/header.php';
   var qbtn = document.getElementById('upQueue');
   qbtn.addEventListener('click', async function () {
     var f = fields();
-    if (f.job.length < 40) { TW.toast('Pehle job post paste karein', 'info'); return; }
+    if (f.job.length < 40) { TW.toast('Paste the job post first', 'info'); return; }
     qbtn.disabled = true;
     try {
       await TW.api('upwork_queue', f);
-      TW.toast('Claude ko bhej diya 🤖 — ready hone par yahin milega');
+      TW.toast('Sent to Claude 🤖 — it will appear here when ready');
       document.getElementById('upJob').value = '';
       loadQueue();
     } catch (e) { TW.toast(e.message, 'err'); }
@@ -341,14 +457,14 @@ require __DIR__ . '/../partials/header.php';
       var r = await TW.api('upwork_queue_list', {});
       var box = document.getElementById('uqList');
       document.getElementById('uqCount').textContent = r.items.length;
-      if (!r.items.length) { box.innerHTML = '<span class="muted">Abhi kuch queue mein nahi — "🤖 Send to Claude" try karein.</span>'; return; }
+      if (!r.items.length) { box.innerHTML = '<span class="muted">Nothing in the queue yet — try "🤖 Send to Claude".</span>'; return; }
       box.innerHTML = '';
       r.items.forEach(function (it) {
-        // Ready hote hi khud khul jaye — koi manual refresh nahi.
+        // Opens automatically the moment it's ready — no manual refresh.
         var prev = uqLastStatus[it.id];
         uqLastStatus[it.id] = it.status;
         if (it.status === 'done' && (prev === 'pending' || prev === 'processing')) {
-          TW.toast('🤖 Claude ka proposal ready — khol raha hoon…');
+          TW.toast('🤖 Claude proposal ready — opening…');
           uqOpen(it.id);
         }
         var d = document.createElement('div');
@@ -363,7 +479,7 @@ require __DIR__ . '/../partials/header.php';
       });
     } catch (e) {
       var bx = document.getElementById('uqList');
-      if (bx && bx.textContent.indexOf('Loading') !== -1) bx.innerHTML = '<span class="muted">Queue load nahi ho saki — 20 sec mein dobara koshish hogi…</span>';
+      if (bx && bx.textContent.indexOf('Loading') !== -1) bx.innerHTML = '<span class="muted">Could not load the queue — retrying in 20 sec…</span>';
     }
   }
   window.uqOpen = async function (id) {
@@ -376,9 +492,61 @@ require __DIR__ . '/../partials/header.php';
     if (!confirm('Remove from queue?')) return;
     try { await TW.api('upwork_queue_delete', { id: id }); loadQueue(); } catch (e) {}
   };
+  // ---- AI Trainer (feed rules) ----
+  function escHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  var urRules = {};   // id -> full rule text (for the popup)
+  async function loadRules() {
+    try {
+      var r = await TW.api('upwork_rule_list', {});
+      document.getElementById('urCount').textContent = r.items.length ? r.items.length + ' rules learned' : '';
+      var box = document.getElementById('urList');
+      urRules = {};
+      if (!r.items.length) { box.innerHTML = '<span class="small muted">No rules fed yet.</span>'; return; }
+      box.innerHTML = r.items.map(function (it) {
+        urRules[it.id] = it.rule;
+        var oneLine = it.rule.replace(/\s+/g, ' ').trim();
+        return '<div class="row" role="button" tabindex="0" title="Click to view the full rule" onclick="urView(' + it.id + ')" ' +
+          'style="gap:9px;align-items:center;padding:8px 11px;border:1px solid var(--border);border-radius:11px;margin-bottom:6px;background:var(--surface-2);cursor:pointer">' +
+          '<span style="flex:0 0 auto;font-size:13px">🧠</span>' +
+          '<div class="grow small" style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(oneLine) + '</div>' +
+          '<span class="muted" style="flex:0 0 auto;font-size:11px">👁️</span></div>';
+      }).join('');
+    } catch (e) { /* silent */ }
+  }
+  var urOpenId = 0;
+  window.urView = function (id) {
+    urOpenId = id;
+    document.getElementById('urModalText').textContent = urRules[id] || '';
+    document.getElementById('urModal').classList.add('open');
+  };
+  document.getElementById('urModalDel').addEventListener('click', async function () {
+    if (!urOpenId) return;
+    if (!confirm('Delete this rule? The system will forget it.')) return;
+    try {
+      await TW.api('upwork_rule_delete', { id: urOpenId });
+      document.getElementById('urModal').classList.remove('open');
+      urOpenId = 0;
+      loadRules();
+      TW.toast('Rule removed');
+    } catch (e) { TW.toast(e.message, 'err'); }
+  });
+  document.getElementById('urFeed').addEventListener('click', async function () {
+    var t = document.getElementById('urInput').value.trim();
+    if (t.length < 5) { TW.toast('Please add a bit more detail', 'info'); return; }
+    this.disabled = true;
+    try {
+      await TW.api('upwork_rule_add', { rule: t });
+      document.getElementById('urInput').value = '';
+      loadRules();
+      TW.toast('Learned 🧠 — every next proposal will follow this ✓');
+    } catch (e) { TW.toast(e.message, 'err'); }
+    finally { this.disabled = false; }
+  });
+
   // TW (app.js) footer mein load hota hai — full page load par uske ready hone ka intezaar karo.
   function bootQueue() {
     loadQueue();
+    loadRules();
     if (window.TW && TW.setPageInterval) TW.setPageInterval(loadQueue, 20000);
     else setInterval(loadQueue, 20000);
   }

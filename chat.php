@@ -160,6 +160,15 @@ function chat_send(int $convId, int $me, string $body, ?string $attachment = nul
     return ['id' => $mid];
 }
 
+/** Highest message id every OTHER member has read — my messages up to this id are "Seen". */
+function chat_seen_up_to(int $convId, int $me): int
+{
+    $stmt = db()->prepare('SELECT COALESCE(MIN(last_read_id), 0) FROM conversation_members
+        WHERE conversation_id = ? AND user_id <> ?');
+    $stmt->execute([$convId, $me]);
+    return (int)$stmt->fetchColumn();
+}
+
 function chat_mark_read(int $convId, int $me): void
 {
     if (!chat_is_member($convId, $me)) return;

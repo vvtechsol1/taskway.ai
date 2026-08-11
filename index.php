@@ -55,7 +55,7 @@ if ($page === 'signup') {
 require_login();
 
 $adminPages = ['users'];
-$pages = ['dashboard', 'braindump', 'tasks', 'board', 'projects', 'project', 'analytics', 'attendance', 'messages', 'portfolio', 'upwork', 'recycle', 'settings', 'users'];
+$pages = ['dashboard', 'braindump', 'tasks', 'board', 'projects', 'project', 'analytics', 'attendance', 'messages', 'portfolio', 'upwork', 'upworkjobs', 'recycle', 'settings', 'users'];
 if (!in_array($page, $pages, true)) {
     $page = 'dashboard';
 }

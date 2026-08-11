@@ -38,14 +38,15 @@ $navAfter = [
     ['attendance','🕐', 'Attendance', null],
 ];
 $navUpworkSub = [
-    ['portfolio', '💼', 'Portfolio'],
-    ['upwork',    '📝', 'Upwork Proposal'],
+    ['portfolio',  '💼', 'Portfolio'],
+    ['upwork',     '📝', 'Upwork Proposal'],
+    ['upworkjobs', '🗂️', 'Upwork Jobs'],
 ];
 $navEnd = [
     ['messages',  '💬', 'Messages',  $unread ?: null],
 ];
 $tasksGroupActive = in_array($ACTIVE, ['tasks', 'braindump', 'board'], true);
-$upworkGroupActive = in_array($ACTIVE, ['portfolio', 'upwork'], true);
+$upworkGroupActive = in_array($ACTIVE, ['portfolio', 'upwork', 'upworkjobs'], true);
 ?>
 <!doctype html>
 <html lang="en" data-theme="<?= esc($theme === 'auto' ? '' : $theme) ?>">
@@ -98,7 +99,8 @@ $upworkGroupActive = in_array($ACTIVE, ['portfolio', 'upwork'], true);
         </a>
       <?php endforeach; ?>
 
-      <!-- Upwork group: Portfolio + Upwork Proposal -->
+      <!-- Upwork group: Portfolio + Upwork Proposal (per-user toggle in Settings) -->
+      <?php if ((int)($me['uw_enabled'] ?? 0) === 1): ?>
       <div class="nav-group <?= $upworkGroupActive ? 'open' : '' ?>" id="navUpworkGroup">
         <a href="#" class="nav-item" data-nav-toggle="navUpworkGroup">
           <span class="ic">🧑‍💼</span>Upwork
@@ -112,6 +114,7 @@ $upworkGroupActive = in_array($ACTIVE, ['portfolio', 'upwork'], true);
           <?php endforeach; ?>
         </div>
       </div>
+      <?php endif; ?>
 
       <?php foreach ($navEnd as [$key, $ic, $label, $badge]): ?>
         <a href="<?= page_url($key) ?>" class="nav-item <?= $ACTIVE === $key ? 'active' : '' ?>">

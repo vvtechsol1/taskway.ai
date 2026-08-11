@@ -42,6 +42,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(page_url('settings', ['saved' => 1]));
     }
 
+    if ($form === 'upwork_toggle') {
+        db()->prepare('UPDATE users SET uw_enabled = ? WHERE id = ?')
+            ->execute([(int)(($_POST['uw_enabled'] ?? '') === '1'), current_user_id()]);
+        redirect(page_url('settings', ['saved' => 1]));
+    }
+
     if ($form === 'upwork_profile') {
         db()->prepare('UPDATE users SET uw_name = ?, uw_title = ?, uw_overview = ?, uw_skills = ?, uw_years = ? WHERE id = ?')
             ->execute([
@@ -131,6 +137,21 @@ require __DIR__ . '/../partials/header.php';
     </form>
   </div>
 
+  <!-- Upwork module toggle -->
+  <?php $uwOn = (int)($me['uw_enabled'] ?? 0) === 1; ?>
+  <div class="card card-pad animate d1">
+    <div class="card-head"><h3>🧑‍💼 Upwork module</h3>
+      <span class="badge <?= $uwOn ? 'done' : '' ?>"><?= $uwOn ? '🟢 Enabled' : '🔒 Disabled' ?></span></div>
+    <p class="small muted" style="margin:0 0 12px">When enabled, the sidebar shows the Upwork menu (Portfolio + Proposals) and the Upwork Profile card appears on the right — disabling hides them all.</p>
+    <form method="post" action="<?= page_url('settings') ?>">
+      <input type="hidden" name="form" value="upwork_toggle">
+      <div class="row wrap" style="gap:8px">
+        <label class="chip <?= $uwOn ? 'active' : '' ?>"><input type="radio" name="uw_enabled" value="1" <?= $uwOn ? 'checked' : '' ?> style="display:none" onchange="this.form.submit()">🟢 Enable</label>
+        <label class="chip <?= $uwOn ? '' : 'active' ?>"><input type="radio" name="uw_enabled" value="0" <?= $uwOn ? '' : 'checked' ?> style="display:none" onchange="this.form.submit()">🔒 Disable</label>
+      </div>
+    </form>
+  </div>
+
   <!-- Appearance -->
   <div class="card card-pad animate d1">
     <div class="card-head"><h3>🎨 Appearance</h3></div>
@@ -160,15 +181,16 @@ require __DIR__ . '/../partials/header.php';
   </div><!-- /LEFT -->
 
   <div style="display:flex;flex-direction:column;gap:24px"><!-- RIGHT column -->
+  <?php if ((int)($me['uw_enabled'] ?? 0) === 1): ?>
   <!-- Upwork profile (fuels proposals) -->
   <div class="card card-pad animate d1">
-    <div class="card-head"><h3>🧑‍💼 Upwork Profile</h3><span class="badge in_progress"><span class="dot"></span>Proposals ka fuel</span></div>
-    <p class="small muted" style="margin:0 0 14px">Ye info proposals ki opening banati hai — apne Upwork profile se copy karein.</p>
+    <div class="card-head"><h3>🧑‍💼 Upwork Profile</h3><span class="badge in_progress"><span class="dot"></span>Fuel for proposals</span></div>
+    <p class="small muted" style="margin:0 0 14px">This info powers your proposal openings — copy it from your Upwork profile.</p>
     <form method="post" action="<?= page_url('settings') ?>">
       <input type="hidden" name="form" value="upwork_profile">
       <div class="row wrap" style="gap:16px">
         <div class="field grow" style="min-width:160px"><label class="fld">Upwork name</label>
-          <input class="input" name="uw_name" value="<?= esc($me['uw_name'] ?? '') ?>" placeholder="Jo naam Upwork par hai"></div>
+          <input class="input" name="uw_name" value="<?= esc($me['uw_name'] ?? '') ?>" placeholder="The name on your Upwork profile"></div>
         <div class="field" style="flex:0 0 130px"><label class="fld">Experience (years)</label>
           <input class="input" name="uw_years" value="<?= esc($me['uw_years'] ?? '') ?>" placeholder="6"></div>
       </div>
@@ -177,10 +199,11 @@ require __DIR__ . '/../partials/header.php';
       <div class="field"><label class="fld">Top skills <span class="muted">(comma se)</span></label>
         <input class="input" name="uw_skills" value="<?= esc($me['uw_skills'] ?? '') ?>" placeholder="React, Next.js, Node.js, TypeScript, PHP, AI integrations"></div>
       <div class="field"><label class="fld">Profile overview / description</label>
-        <textarea class="textarea" name="uw_overview" style="min-height:96px" placeholder="Wohi overview jo aap ke Upwork profile par hai…"><?= esc($me['uw_overview'] ?? '') ?></textarea></div>
+        <textarea class="textarea" name="uw_overview" style="min-height:96px" placeholder="The same overview as on your Upwork profile…"><?= esc($me['uw_overview'] ?? '') ?></textarea></div>
       <button class="btn btn-primary mt-2">Save Upwork profile</button>
     </form>
   </div>
+  <?php endif; ?>
   <?php if (is_super_admin()): ?>
   <!-- Brain Dump AI (global, admin) -->
   <div class="card card-pad mb-6 animate d2">
@@ -196,8 +219,8 @@ require __DIR__ . '/../partials/header.php';
           <?php endforeach; ?>
         </div>
       </div>
-      <div class="field"><label class="fld">API key</label><input class="input" type="password" name="ai_api_key" placeholder="<?= (trim((string)setting('ai_api_key')) !== '' || trim((string)setting('claude_api_key')) !== '') ? '•••••••• (saved — blank to keep)' : 'apni key paste karein' ?>">
-        <div class="help">🚀 <strong>Groq FREE key:</strong> console.groq.com → API Keys (koi card nahi) · 🔷 <strong>Gemini FREE key:</strong> aistudio.google.com/apikey · ✨ Claude: console.anthropic.com (paid). Key aap ke database mein rehti hai; na ho to offline engine chalta hai.</div></div>
+      <div class="field"><label class="fld">API key</label><input class="input" type="password" name="ai_api_key" placeholder="<?= (trim((string)setting('ai_api_key')) !== '' || trim((string)setting('claude_api_key')) !== '') ? '•••••••• (saved — blank to keep)' : 'paste your key' ?>">
+        <div class="help">🚀 <strong>Groq FREE key:</strong> console.groq.com → API Keys (no card needed) · 🔷 <strong>Gemini FREE key:</strong> aistudio.google.com/apikey · ✨ Claude: console.anthropic.com (paid). The key stays in your database; without one the offline engine runs.</div></div>
       <div class="field"><label class="fld">Model <span class="muted">(optional — khali chhoro to best default)</span></label><input class="input" name="ai_model" value="<?= esc(setting('ai_model', '')) ?>" placeholder="groq: llama-3.3-70b-versatile · gemini: gemini-2.0-flash · claude: claude-sonnet-5"></div>
       <label class="row" style="gap:10px;cursor:pointer;margin-top:8px"><input type="checkbox" name="allow_signup" <?= setting('allow_signup') === '1' ? 'checked' : '' ?> style="width:18px;height:18px;accent-color:var(--primary)"> <span>Allow new people to self-register (sign up)</span></label>
       <button class="btn btn-primary mt-4">Save AI settings</button>

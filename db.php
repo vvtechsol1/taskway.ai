@@ -24,7 +24,7 @@ function db(): PDO
     return $pdo;
 }
 
-const SCHEMA_VERSION = '12';
+const SCHEMA_VERSION = '16';
 
 function db_migrate(PDO $pdo): void
 {
@@ -197,6 +197,55 @@ function db_migrate(PDO $pdo): void
         $stmt->execute([$k, $v]);
     }
 
+    // Portfolio enrichment queue — projects Claude should research + screenshot + complete.
+    $pdo->exec(<<<SQL
+        CREATE TABLE IF NOT EXISTS portfolio_queue (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER,
+            project_id INTEGER,
+            url        TEXT DEFAULT '',
+            note       TEXT DEFAULT '',
+            status     TEXT NOT NULL DEFAULT 'pending',   -- pending | processing | done | failed
+            created_at TEXT DEFAULT (datetime('now','localtime')),
+            done_at    TEXT
+        );
+    SQL);
+
+    // Upwork Jobs tracker — applied jobs with summary, sent proposal, and the client conversation.
+    $pdo->exec(<<<SQL
+        CREATE TABLE IF NOT EXISTS uw_jobs (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER,
+            title      TEXT NOT NULL,
+            summary    TEXT DEFAULT '',
+            proposal   TEXT DEFAULT '',
+            status     TEXT NOT NULL DEFAULT 'applied',   -- applied | replied | interview | hired | closed
+            created_at TEXT DEFAULT (datetime('now','localtime')),
+            updated_at TEXT DEFAULT (datetime('now','localtime'))
+        );
+    SQL);
+    $pdo->exec(<<<SQL
+        CREATE TABLE IF NOT EXISTS uw_job_msgs (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id     INTEGER NOT NULL,
+            user_id    INTEGER,
+            sender     TEXT NOT NULL DEFAULT 'client',    -- client | me
+            body       TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        );
+    SQL);
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_uwjm_job ON uw_job_msgs(job_id);');
+
+    // Upwork AI trainer — user-fed improvement rules applied to every proposal generation.
+    $pdo->exec(<<<SQL
+        CREATE TABLE IF NOT EXISTS upwork_rules (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER,
+            rule       TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now','localtime'))
+        );
+    SQL);
+
     db_migrate_users($pdo);
 
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_pq_status ON proposal_queue(status);');
@@ -233,6 +282,8 @@ function db_migrate_users(PDO $pdo): void
     foreach (['uw_name', 'uw_title', 'uw_overview', 'uw_skills', 'uw_years'] as $col) {
         if (!in_array($col, $ucols, true)) $pdo->exec("ALTER TABLE users ADD COLUMN $col TEXT DEFAULT ''");
     }
+    // Per-user Upwork module toggle (hides Upwork menu + profile card when off). Default OFF.
+    if (!in_array('uw_enabled', $ucols, true)) $pdo->exec("ALTER TABLE users ADD COLUMN uw_enabled INTEGER DEFAULT 0");
 
     // Add user_id ownership column to each data table if missing.
     foreach (['projects', 'tasks', 'time_entries', 'activity_log'] as $t) {

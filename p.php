@@ -20,7 +20,7 @@ $projects = []; $detail = null; $totMin = 0; $totDone = 0;
 if ($live) {
     $uid = (int)$owner['id'];
     $stmt = db()->prepare("SELECT * FROM projects WHERE user_id = ? AND deleted_at IS NULL AND in_portfolio = 1
-        ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'done' THEN 1 ELSE 2 END, position, name");
+        ORDER BY id DESC");
     $stmt->execute([$uid]);
     $projects = $stmt->fetchAll();
 
@@ -99,7 +99,7 @@ nav{position:sticky;top:0;z-index:50;background:rgba(245,243,239,.85);backdrop-f
 .kick{font-size:12px;font-weight:700;letter-spacing:.28em;text-transform:uppercase;color:var(--mut);display:flex;align-items:center;gap:12px}
 .kick::before{content:"";width:34px;height:2px;background:var(--ink)}
 h1.mega{font-size:clamp(52px,10vw,138px);font-weight:900;line-height:.98;text-transform:uppercase;margin:22px 0 8px}
-h1.mega .o{-webkit-text-stroke:2px var(--ink);color:transparent}
+h1.mega .o{-webkit-text-stroke:2.5px var(--ink);color:transparent}
 .hero-row{display:flex;gap:40px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;margin-top:26px}
 .hero-row p{max-width:520px;color:var(--mut);font-size:16px}
 .hstats{display:flex;gap:34px}
@@ -189,7 +189,7 @@ h1.dtitle{font-size:clamp(40px,7vw,92px);font-weight:900;line-height:1;letter-sp
   <div class="locked"><div>
     <div style="font-size:60px;margin-bottom:16px">🔒</div>
     <h1 class="disp" style="font-size:34px;margin-bottom:10px">This portfolio is private</h1>
-    <p style="color:var(--mut)">Ya link ghalat hai, ya owner ne portfolio private kar diya hai.</p>
+    <p style="color:var(--mut)">Either this link is wrong, or the owner has made the portfolio private.</p>
   </div></div>
 
 <?php elseif ($detail): /* ============ PROJECT DETAIL ============ */ ?>
@@ -285,7 +285,6 @@ h1.dtitle{font-size:clamp(40px,7vw,92px);font-weight:900;line-height:1;letter-sp
 <header class="hero"><div class="wrap">
   <div class="kick rv">Portfolio · <?= date('Y') ?></div>
   <h1 class="disp mega">
-    <span class="rv" style="display:block"><?= esc($name) ?></span>
     <span class="rv o" style="display:block"><?= esc($headline) ?></span>
   </h1>
   <div class="hero-row">

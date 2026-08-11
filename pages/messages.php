@@ -20,6 +20,7 @@ if ($activeId && chat_is_member($activeId, $me)) {
         $activeMsgs = chat_messages($activeId, $me, 0);
         $activeDisplay = chat_display($active, $me);
         $activeMembers = chat_members($activeId);
+        $activeSeenUpTo = chat_seen_up_to($activeId, $me);
     }
 }
 $allUsers = array_values(array_filter(get_users(), fn($u) => (int)$u['id'] !== $me));
@@ -157,6 +158,10 @@ require __DIR__ . '/../partials/header.php';
 #voiceBtn.rec { background:var(--coral); color:#fff; border-color:var(--coral); animation:pulse-dot 1.1s infinite; }
 .chat-user-row { display:flex; align-items:center; gap:11px; width:100%; padding:8px 10px; border-radius:11px; border:1px solid var(--border); background:var(--surface); cursor:pointer; transition:all var(--dur) var(--ease); }
 .chat-user-row:hover { border-color:var(--primary); background:var(--surface-2); }
+.day-sep { text-align:center; margin:14px 0 8px; }
+.day-sep span { display:inline-block; padding:5px 14px; border-radius:99px; font-size:11.5px; font-weight:600;
+  background:var(--surface-3); color:var(--text-3); border:1px solid var(--border); }
+.seen-tag { margin-left:6px; font-size:11px; font-weight:600; color:var(--sky, #38bdf8); }
 @media (max-width:800px) {
   .chat-wrap { height:calc(100vh - 150px); }
   .chat-list { flex-basis:100%; }
@@ -177,7 +182,49 @@ require __DIR__ . '/../partials/header.php';
   function esc(s) { return (s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function fmtTime(s) { try { const d = new Date((s || '').replace(' ', 'T')); return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } }
   const BASE = (window.TASKWAY && window.TASKWAY.base) || '';
+
+  // WhatsApp-style date separators: "Today" / "Yesterday" / full date above each day's messages.
+  let lastDayKey = '';
+  function dayKey(s) { return (s || '').slice(0, 10); }
+  function fmtDay(s) {
+    try {
+      const d = new Date((s || '').replace(' ', 'T'));
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const that = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const diff = Math.round((today - that) / 86400000);
+      if (diff === 0) return 'Today';
+      if (diff === 1) return 'Yesterday';
+      return d.toLocaleDateString([], { day: 'numeric', month: 'short', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
+    } catch (e) { return ''; }
+  }
+  function maybeDaySep(m) {
+    const k = dayKey(m.created_at);
+    if (!k || k === lastDayKey) return;
+    lastDayKey = k;
+    const sep = document.createElement('div');
+    sep.className = 'day-sep';
+    sep.innerHTML = '<span>' + fmtDay(m.created_at) + '</span>';
+    box.appendChild(sep);
+  }
+
+  // "Seen" under my last message the other side has read (WhatsApp style).
+  let seenUpTo = <?= (int)($activeSeenUpTo ?? 0) ?>;
+  function updateSeen(upTo) {
+    seenUpTo = Math.max(seenUpTo, parseInt(upTo || 0));
+    box.querySelectorAll('.seen-tag').forEach((t) => t.remove());
+    const mineMsgs = box.querySelectorAll('.msg.me');
+    for (let i = mineMsgs.length - 1; i >= 0; i--) {
+      if (parseInt(mineMsgs[i].dataset.id) <= seenUpTo) {
+        const meta = mineMsgs[i].querySelector('.meta');
+        if (meta) meta.insertAdjacentHTML('beforeend', '<span class="seen-tag">✓✓ Seen</span>');
+        break;
+      }
+    }
+  }
+
   function render(m) {
+    maybeDaySep(m);
     const mine = parseInt(m.user_id) === ME;
     const el = document.createElement('div');
     el.className = 'msg ' + (mine ? 'me' : 'them');
@@ -199,6 +246,7 @@ require __DIR__ . '/../partials/header.php';
     lastId = Math.max(lastId, parseInt(m.id));
   }
   (<?= json_encode($activeMsgs, JSON_UNESCAPED_UNICODE) ?>).forEach((m) => render(m));
+  updateSeen(seenUpTo);
   box.scrollTop = box.scrollHeight;
 
   const form = document.getElementById('chatForm'), input = document.getElementById('chatBody');
@@ -254,6 +302,7 @@ require __DIR__ . '/../partials/header.php';
     try {
       const r = await TW.api('chat_poll', { conversation_id: CONV, after: lastId });
       if (r.messages && r.messages.length) { const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80; r.messages.forEach((m) => render(m)); if (atBottom) box.scrollTop = box.scrollHeight; }
+      if (typeof r.seen_up_to !== 'undefined') updateSeen(r.seen_up_to);
     } catch (e) {}
   }
   function bootPoll() {
