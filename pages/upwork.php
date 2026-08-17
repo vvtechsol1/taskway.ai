@@ -410,24 +410,28 @@ require __DIR__ . '/../partials/header.php';
     }, 60);
   });
 
+  // Shared generator: same AI brain (browser AI with offline fallback). Used by
+  // "Generate now" AND for the instant draft when a job is sent to Claude.
+  async function generateViaAI(f) {
+    var p = await TW.api('upwork_prompt', f);
+    if (p.provider && p.provider !== 'local') {
+      try {
+        var r = await callBrowserAI(p);
+        r.reference_links = p.reference_links; r.job_techs = p.job_techs; r.engine = p.provider;
+        return r;
+      } catch (aiErr) { TW.toast(p.provider + ' issue (' + aiErr.message + ') — offline engine use ho raha', 'info'); }
+    }
+    return await TW.api('upwork_proposal', f);
+  }
+
   btn.addEventListener('click', async function () {
     var f = fields();
     if (f.job.length < 40) { TW.toast('Paste the job post first', 'info'); return; }
     btn.disabled = true; btn.textContent = '✨ Writing…';
     try {
-      var p = await TW.api('upwork_prompt', f);
-      if (p.provider && p.provider !== 'local') {
-        try {
-          var r = await callBrowserAI(p);
-          r.reference_links = p.reference_links; r.job_techs = p.job_techs;
-          renderResult(r);
-          TW.toast('Proposal ready (' + p.provider + ' AI) ✓');
-          return;
-        } catch (aiErr) { TW.toast(p.provider + ' issue (' + aiErr.message + ') — offline engine use ho raha', 'info'); }
-      }
-      var r2 = await TW.api('upwork_proposal', f);
-      renderResult(r2);
-      TW.toast('Proposal ready (' + (r2.engine === 'local' ? 'offline engine' : r2.engine + ' AI') + ') ✓');
+      var r = await generateViaAI(f);
+      renderResult(r);
+      TW.toast('Proposal ready (' + (r.engine === 'local' ? 'offline engine' : (r.engine || 'AI') + ' AI') + ') ✓');
     } catch (e) { TW.toast(e.message, 'err'); }
     finally { btn.disabled = false; btn.textContent = '✨ Generate now'; }
   });
@@ -437,14 +441,25 @@ require __DIR__ . '/../partials/header.php';
   qbtn.addEventListener('click', async function () {
     var f = fields();
     if (f.job.length < 40) { TW.toast('Paste the job post first', 'info'); return; }
-    qbtn.disabled = true;
+    qbtn.disabled = true; qbtn.textContent = '🤖 Sending…';
     try {
-      await TW.api('upwork_queue', f);
-      TW.toast('Sent to Claude 🤖 — it will appear here when ready');
+      var q = await TW.api('upwork_queue', f);
       document.getElementById('upJob').value = '';
       loadQueue();
+      // INSTANT DRAFT: the same AI brain writes a draft right now (seconds), opens it,
+      // and saves it on the queue row. Claude's final version replaces it automatically
+      // the moment it lands — the queue poll auto-opens it.
+      TW.toast('Sent to Claude 🤖 — instant draft ban raha hai…');
+      try {
+        var draft = await generateViaAI(f);
+        draft.draft = true;
+        renderResult(draft);
+        TW.toast('⚡ Draft ready — Claude apni final version likh raha hai, aate hi khud khul jayegi');
+        await TW.api('upwork_queue_draft', { id: q.id, result: draft });
+        loadQueue();
+      } catch (dErr) { /* draft is best-effort — Claude's final version still arrives */ }
     } catch (e) { TW.toast(e.message, 'err'); }
-    finally { qbtn.disabled = false; }
+    finally { qbtn.disabled = false; qbtn.textContent = '🤖 Send to Claude'; }
   });
 
   var uqLastStatus = {};
@@ -467,13 +482,17 @@ require __DIR__ . '/../partials/header.php';
           TW.toast('🤖 Claude proposal ready — opening…');
           uqOpen(it.id);
         }
+        var badge = stBadge[it.status] || '';
+        if (it.has_draft && (it.status === 'pending' || it.status === 'processing')) {
+          badge = '<span class="badge in_progress"><span class="dot"></span>⚡ Draft ready · Claude improving…</span>';
+        }
         var d = document.createElement('div');
         d.className = 'row between wrap';
         d.style.cssText = 'gap:10px;padding:11px 4px;border-bottom:1px solid var(--border)';
         d.innerHTML = '<div class="grow" style="min-width:200px"><div class="strong" style="font-size:13px">' + esc(it.excerpt) + '…</div>' +
           '<div class="muted" style="font-size:11.5px">' + esc(it.created_at) + (it.budget ? ' · ' + esc(it.budget) : '') + '</div></div>' +
-          '<div class="row" style="gap:8px">' + (stBadge[it.status] || '') +
-          (it.status === 'done' ? ' <button class="btn btn-soft btn-sm" onclick="uqOpen(' + it.id + ')">📄 Open</button>' : '') +
+          '<div class="row" style="gap:8px">' + badge +
+          (it.status === 'done' || it.has_draft ? ' <button class="btn btn-soft btn-sm" onclick="uqOpen(' + it.id + ')">📄 Open</button>' : '') +
           ' <button class="icon-btn" style="width:28px;height:28px;font-size:12px" onclick="uqDel(' + it.id + ')">🗑</button></div>';
         box.appendChild(d);
       });
@@ -485,7 +504,10 @@ require __DIR__ . '/../partials/header.php';
   window.uqOpen = async function (id) {
     try {
       var r = await TW.api('upwork_queue_get', { id: id });
-      if (r.item && r.item.result) { renderResult(r.item.result); TW.toast('Claude ka likha proposal 🤖✓'); }
+      if (r.item && r.item.result) {
+        renderResult(r.item.result);
+        TW.toast(r.item.result.draft ? '⚡ Instant draft — Claude ki final version aa rahi hai' : 'Claude ka likha proposal 🤖✓');
+      }
     } catch (e) { TW.toast(e.message, 'err'); }
   };
   window.uqDel = async function (id) {
@@ -547,8 +569,8 @@ require __DIR__ . '/../partials/header.php';
   function bootQueue() {
     loadQueue();
     loadRules();
-    if (window.TW && TW.setPageInterval) TW.setPageInterval(loadQueue, 20000);
-    else setInterval(loadQueue, 20000);
+    if (window.TW && TW.setPageInterval) TW.setPageInterval(loadQueue, 7000);
+    else setInterval(loadQueue, 7000);
   }
   if (window.TW) bootQueue();
   else document.addEventListener('DOMContentLoaded', bootQueue);

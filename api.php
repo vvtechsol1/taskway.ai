@@ -500,8 +500,20 @@ try {
                 ->execute([current_user_id(), $job, trim((string)($in['budget'] ?? '')), trim((string)($in['notes'] ?? ''))]);
             json_response(['ok' => true, 'id' => (int)db()->lastInsertId()]);
 
+        case 'upwork_queue_draft': {
+            // Instant browser-generated draft on a queued job — never overwrites Claude's final version.
+            $res = $in['result'] ?? null;
+            if (is_array($res) && !empty($res['cover_letter'])) {
+                $res['draft'] = true;
+                db()->prepare("UPDATE proposal_queue SET result = ? WHERE id = ? AND user_id = ? AND status != 'done'")
+                    ->execute([json_encode($res, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), (int)($in['id'] ?? 0), current_user_id()]);
+            }
+            json_response(['ok' => true]);
+        }
+
         case 'upwork_queue_list':
-            $stmt = db()->prepare("SELECT id, status, budget, substr(job,1,90) excerpt, created_at, done_at
+            $stmt = db()->prepare("SELECT id, status, budget, substr(job,1,90) excerpt, created_at, done_at,
+                CASE WHEN result IS NOT NULL THEN 1 ELSE 0 END AS has_draft
                 FROM proposal_queue WHERE user_id = ? ORDER BY id DESC LIMIT 20");
             $stmt->execute([current_user_id()]);
             json_response(['ok' => true, 'items' => $stmt->fetchAll()]);
